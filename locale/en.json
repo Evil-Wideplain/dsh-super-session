@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Personal Agent",
+    "description": "A shell-first personal assistant with web, Office, goals, schedules, and editable identity and memory.",
+    "detail": "docs/DETAIL.md"
+  }
+}

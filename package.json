@@ -1,0 +1,30 @@
+{
+  "name": "@local/dsh-personal-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "context.js",
+  "description": "A shell-first personal assistant agent preset for DeepSeek Harness: persistent shell, web, Office, goals and schedules, with editable identity and memory.",
+  "license": "MIT",
+  "exports": {
+    ".": "./context.js",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "context.js",
+    "cordis.patch.yml",
+    "prompt",
+    "locale/*.json",
+    "docs/DETAIL.md",
+    "docs/DETAIL.zh.md",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

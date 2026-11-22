@@ -1,0 +1,183 @@
+# Personal Agent preset — shell-first, with the interaction tools that need a
+# framework rather than a shell.
+#
+# The preset mounts:
+#
+# - a persistent shell (bash on non-Windows, PowerShell on Windows);
+# - `read_image` for visual inspection (tool-fs with every other file tool off);
+# - background jobs, scheduled tasks, goals, todos, plan mode, structured
+#   questions, web search/fetch, file delivery, Office documents, and skill
+#   loading;
+# - the preset's own prompt rows (persona, handbook, personal files, AGENTS.md,
+#   clock).
+#
+# It deliberately does NOT mount `read`/`write`/`edit`/`glob`/`grep` (the shell
+# is the file interface) or `subagent`/`workflow` (worker sessions come from the
+# profile's session-messaging plugin). `working_directory` is supplied by the
+# Web host plane for every preset, so mounting it again would duplicate the
+# tool; do not add it here.
+#
+# Worker-agent, long-session, session-search and memory tools are supplied by
+# plugins installed in the profile (session-messaging, session-guardian,
+# dsh-auto-memory). They are global tool rows, not part of this preset.
+
+- insert:
+    - id: preset-personal
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: personal
+        name: 个人助理（Personal Agent）
+        description: 单 Agent 个人助理：持久 shell、图片识别、Web/Office/日程/目标/计划工具；会话与记忆由 profile 提供。
+        order: 20
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                You are the user's personal agent: a long-running assistant that works on their behalf across their computer, files, accounts, and the web. You are not a generic chatbot, and coding is only one of the things you can do. Reply in the user's language.
+
+          - id: personal-context
+            name: '@local/dsh-personal-agent'
+            # Defaults to the English handbook. For the Chinese one, uncomment:
+            # config:
+            #   handbookPath: ./prompt/handbook.zh.md
+
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+
+          # Image recognition only: read is off, write/edit off, applyPatch off.
+          # `read_image` registers only when the attachments service and an
+          # image-capable model route are available.
+          - id: image
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              read: false
+              readImage: true
+              write: false
+              edit: false
+              applyPatch: false
+
+          # Persistent shell, copied from the built-in `minimal` preset: a PTY,
+          # a terminal, and the persistent bash/pwsh tool (5-minute timeout).
+          - id: persistent-shell
+            name: cordis:group
+            group: true
+            isolate:
+              terminals: true
+            config:
+              - id: pty
+                name: '@deepseek-ai/dsh-terminal'
+              - id: terminal-bash
+                name: '@deepseek-ai/dsh-terminal-bash'
+                disabled: !!js process.platform === 'win32'
+                config:
+                  timeoutMs: 300000
+              - id: persistent-bash
+                name: '@deepseek-ai/dsh-tool-bash-persistent'
+                disabled: !!js process.platform === 'win32'
+                config:
+                  timeoutMs: 300000
+                  description: |-
+                    Run commands in a bash shell
+                    * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
+                    * Network access depends on the task environment. Prefer configured mirrors/proxies when they are available.
+                    * State is persistent across command calls and discussions with the user.
+                    * To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.
+                    * Please avoid commands that may produce a very large amount of output.
+                    * Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.
+              - id: terminal-pwsh
+                name: '@deepseek-ai/dsh-terminal-bash'
+                disabled: !!js process.platform !== 'win32'
+                config:
+                  shellDialect: pwsh
+                  timeoutMs: 300000
+              - id: persistent-pwsh
+                name: '@deepseek-ai/dsh-tool-pwsh-persistent'
+                disabled: !!js process.platform !== 'win32'
+                config:
+                  timeoutMs: 300000
+                  description: |-
+                    Run commands in a PowerShell shell
+                    * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
+                    * Network access depends on the task environment. Prefer configured mirrors/proxies when they are available.
+                    * State is persistent across command calls and discussions with the user.
+                    * Use native Windows paths (C:\...) and $env:NAME variables; this is PowerShell, not bash.
+                    * Please avoid commands that may produce a very large amount of output.
+                    * Please run long lived commands in the background, e.g. 'Start-Job' or start a server with Start-Process.
+
+          # Background jobs: `run_in_background` producers come from the shell and
+          # later tool rows; these are the model-facing controls.
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+
+          # Scheduled tasks; the `schedule` service is host-plane.
+          - id: tool-schedule
+            name: '@deepseek-ai/dsh-tool-schedule'
+
+          # Skill loading. The registry is host-plane; this provider adds local
+          # roots (project, user) plus the built-in agent-preset skills, and
+          # `tool-skill` exposes the catalog and loader.
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+            config:
+              customSkillDirs:
+                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-agent-preset/package.json')), 'skills')
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+
+          # Goals: the goal service and round driver stay on the host plane;
+          # the preset owns the model-facing tool and the /goal command.
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+
+          # Plan mode: the base row is disabled for Web, so the preset mounts it
+          # in its own realm with plan-mode guidance.
+          - id: planning
+            name: cordis:group
+            group: true
+            isolate:
+              planMode: true
+            config:
+              - id: plan-mode
+                name: '@deepseek-ai/dsh-plan-mode'
+                config:
+                  section: |
+                    You are in plan mode. Stay in plan mode until the user approves your plan through exit_plan_mode or switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+                    Explore first with read-only shell commands and inspection: list files, read text, check git state, and verify facts in the workspace. Do not create, edit, move, or delete files, install packages, change configuration, run generators or formatters that rewrite tracked files, commit, or otherwise carry out the plan. This agent has no file-write tools; the shell is its only mutation path, so the plan-mode restriction applies to shell commands just as it would to a write tool.
+
+                    Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where files live or how current behavior works when you can find out.
+
+                    Make the plan decision-complete: state the goal and success criteria; group the work by area; identify the files, commands, services, and external effects involved; cover edge cases, failure modes, verification steps, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer could implement it without making design decisions.
+
+                    When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+
+          # Structured questions and progress display.
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+
+          # Web search/fetch and file delivery.
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+
+          # Office viewing/conversion/recalculation. The three tools activate
+          # after an Office skill (office, office-docx, office-xlsx,
+          # office-pptx) loads; the skill provider comes from the host plane.
+          - id: tool-office
+            name: '@deepseek-ai/dsh-tool-office'
