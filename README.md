@@ -31,7 +31,7 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 
 ## 安装
 
-> 目前只做了静态校验，**没有**安装到当前 profile。安装会改变 profile，需要你确认。
+> 安装会改变 profile。安装或更新后，已有会话继续使用旧预设，**必须新建会话**才能看到 **个人助理**。
 
 在 DSH 里打开 **插件 / Plugins → 添加插件（Add plugin）→ 选择本地目录**，选中仓库根目录 `C:\Code\super_agent`。安装完成后，新建会话，在预设列表里选 **个人助理（Personal Agent）**。
 
