@@ -8,8 +8,7 @@
 # - background jobs, scheduled tasks, goals, todos, plan mode, structured
 #   questions, web search/fetch, file delivery, Office documents, and skill
 #   loading;
-# - the preset's own prompt rows (persona, handbook, personal files, AGENTS.md,
-#   clock).
+# - the preset's own prompt rows (persona, handbook, AGENTS.md chain, clock).
 #
 # It deliberately does NOT mount `read`/`write`/`edit`/`glob`/`grep` (the shell
 # is the file interface) or `subagent`/`workflow` (worker sessions come from the
@@ -34,9 +33,9 @@
             name: '@deepseek-ai/dsh-persona'
             config:
               prefix: |
-                You are the user's personal agent: a long-running assistant that works on their behalf across their computer, files, accounts, and the web. You are not a generic chatbot, and coding is only one of the things you can do. Reply in the user's language.
+                You are the user's personal agent: a long-running assistant with a consistent name, voice, and manner. You work on the user's behalf across their computer, files, accounts, and the web. You are direct, warm, and specific; you prefer a quiet, correct result to a stream of updates. Coding is one of the things you can do, not your identity. Reply in the user's language.
 
-          - id: personal-context
+          - id: personal-handbook
             name: '@local/dsh-personal-agent'
             # Defaults to the English handbook. For the Chinese one, uncomment:
             # config:

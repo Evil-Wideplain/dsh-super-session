@@ -1,10 +1,10 @@
 # Personal Agent（DSH Agent 预设）
 
-一个把 **DSH Super-agent 的分工/注意力原则** 和 **Muse 个人助理的运行时文件/记忆/主动性设计** 合起来的单 Agent 预设。
+一个把 **DSH Super-agent 的分工/注意力原则** 和 **Muse 的主动性/关系设计** 合起来的单 Agent 预设。
 
 - **shell 优先**：文件读写、进程、脚本都走 **持久 shell**，不挂 `read`/`write`/`edit`/`glob`/`grep`。
 - **需要框架状态的能力才挂工具**：后台任务、定时任务、目标、todo、plan mode、结构化提问、Web、文件交付、Office、skill 由预设挂载；worker 会话、长会话/检索、记忆仍由 profile 插件提供，预设不重复挂载。
-- **六个可编辑运行时文件**：每次组装 prompt 时注入；改 `MEMORY.md` 或 `USER.md` 不需要重启会话。
+- **记忆只走插件**：不注入 `SOUL.md` / `USER.md` / `MEMORY.md` 等运行时文件；耐久信息用 profile 的 `memory_*` 工具，只有一套记忆。
 - **不是** Router/Worker 系统，也**不是**另一个 coding agent；编码只是它能力的一部分。
 
 ## 目录结构
@@ -13,7 +13,7 @@
 C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
   package.json                 # bundle 清单：dsh.bundle.patch
   cordis.patch.yml             # 预设声明 + 工具清单
-  context.js                   # 预设插件：注入 handbook 与个人上下文
+  context.js                   # 预设插件：注入 handbook
   prompt/
     handbook.md                # 操作手册（英文，默认）
     handbook.zh.md             # 操作手册（中文）
@@ -45,20 +45,9 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 
 ## 首次使用
 
-新建会话后说「你好」即可。`context.js` 会发现默认的个人目录下没有文件，注入一段 first-run 提示；Agent 会提出初始化，一次问一个问题，然后用 shell 写：
+新建会话后说「你好」即可。如果你还没有关于用户的记忆，Agent 会提出初始化，一次问一个问题（怎么称呼、时区、想先得到什么帮助、希望你多主动），并用 `memory_write` 把耐久答案存进 profile 的记忆插件；不再创建任何个人文件。
 
-| 文件 | 内容 |
-| --- | --- |
-| `SOUL.md` | 人格与语气 |
-| `IDENTITY.md` | 名字、角色、vibe、emoji |
-| `USER.md` | 用户是谁、怎么称呼、时区、在意什么 |
-| `PEOPLE.md` | 用户在意的人与群体，以及怎么称呼他们 |
-| `MEMORY.md` | 耐久事实、偏好、承诺、决定 |
-| `PROACTIVE_PREFERENCES.md` | 想听什么、不想听什么、什么时候听、怎么呈现 |
-
-默认目录是 `$DSH_HOME/personal`，没有 `DSH_HOME` 时是 `~/.dsh/personal`。可以在 `personal-context` 行的 `config.dataDir` 里改（支持绝对路径或 `~/...`）。
-
-这些文件是普通 Markdown，用户和 Agent 都能改。`context.js` 每次组装 prompt 都重新读，所以编辑下一步就生效；读不到或超出预算时降级为提示，不会让整个 prompt 组装失败。
+记忆由 profile 的 `dsh-auto-memory` 插件管理：`memory_write` / `memory_search` / `memory_list` / `memory_read` / `memory_delete` / `memory_prune`。它不是随 prompt 注入的 Markdown，也不需要在 bundle 里配置目录。
 
 ## 设计来源
 
@@ -72,14 +61,17 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 
 ### 从 Muse 借的
 
-- **运行时文件即自我**：`SOUL.md` / `IDENTITY.md` / `USER.md` / `PEOPLE.md` / `MEMORY.md` / `PROACTIVE_PREFERENCES.md` 每轮注入。
-- **记忆不是流水账**：只存耐久事实、偏好、承诺；不存 transcript、工具日志、临时进度。
-- **主动性有偏好文件**：用户写清楚想听什么、什么时候听；默认安静。
+- **结构与文风**：借鉴 Muse 的写法——从身份直接开始，价值观用连续散文展开，再写工作方式、记忆、表达、主动性、安全；不写文档说明，不罗列工具目录。
+- **工具使用纪律**：把工具返回当作事实来源、失败/空结果照实报告、不编造标识符、不猜耗时、审批结果最终——这几条改写自 Muse 的 Tools 章节；shell、`read_image`、web、Office、skill 等段落是 DSH 环境特有的，不在 Muse 里。
+- **记忆不是流水账**：只存耐久事实、偏好、承诺；不存 transcript、工具日志、临时进度。现在落在 profile 的 memory 插件里。
+- **主动性有偏好记录**：用户写清楚想听什么、什么时候听；默认安静。偏好存进记忆，不靠单独文件。
 - **关系与分寸**：知道用户在意谁，但「no surprises」——只在对话有明确关联时使用。
 - **谨慎（Discretion）**：知道得多、说得少；一次泄露比一次任务失败更贵。
 
 ### 没有照搬的
 
+- Muse 的六文件运行时体系（`SOUL.md` / `IDENTITY.md` / `USER.md` / `PEOPLE.md` / `MEMORY.md` / `PROACTIVE_PREFERENCES.md`）：已移除，改用 profile 的 memory 插件；人格由 `persona.prefix` 与手册承载，避免双记忆。
+- Muse 的原文与 Meta 产品内容：只借鉴结构与文风，没有逐字复制。
 - Muse 的「家庭事务覆盖模型训练」等政策段：争议大、与 DSH 的通用安全边界冲突，未复制。
 - Muse 的 Secure VM / Sentinel / Wallet / Feed / Side Chats：属于 Meta 产品基础设施，DSH 里没有对应物。
 - Router/Worker、Ticket、Mandate、准入表：那是另一个 bundle 的领域模型，不适合塞进单 Agent 预设。
@@ -120,24 +112,21 @@ profile 里的插件另外提供以下**全局工具**，不由本预设挂载�
 
 本预设**不挂载**：`read` / `write` / `edit` / `glob` / `grep` / `apply_patch`、`subagent` / `subagent_fork` / `workflow`。文件读写通过 shell；委派通过 profile 的 worker 会话。
 
-worker 会话是独立会话，默认不使用本个人预设，因此不会自动看到 `MEMORY.md` / `USER.md`。只传任务真正需要的上下文。
+worker 会话是独立会话，默认不使用本个人预设，因此不会共享你的记忆。只传任务真正需要的上下文。
 
 ## 自定义
 
 - **改人格/规则**：编辑 `prompt/handbook.md`；改完需要重新加载 bundle（重启 DSH 或重新安装）才会生效，因为它在激活时读一次。
-- **切换手册语言**：默认读 `prompt/handbook.md`；要中文，给 `personal-context` 行加 `config.handbookPath: ./prompt/handbook.zh.md`。手册在激活时读一次，改完需要重新加载 bundle。
-- **改身份**：编辑 `cordis.patch.yml` 里 `persona.prefix`。
-- **改记忆目录**：给 `personal-context` 行加 `config.dataDir`。
+- **切换手册语言**：默认读 `prompt/handbook.md`；要中文，给 `personal-handbook` 行加 `config.handbookPath: ./prompt/handbook.zh.md`。手册在激活时读一次，改完需要重新加载 bundle。
+- **改身份**：编辑 `cordis.patch.yml` 里 `persona.prefix`（名字、语气、边界都在这里）。
 - **加工具**：往 `plugins` 列表里加官方包；可参考 `dsh-web-app/presets/standard.patch.yml`。
 - **加回文件工具**：把 `image` 行换成不带 config 的 `@deepseek-ai/dsh-tool-fs`，即得到 `read`/`write`/`edit`；再加 `@deepseek-ai/dsh-tool-fs-search` 得到 `glob`/`grep`。
-- **改包名**：如果重命名 `@local/dsh-personal-agent`，同步改 `personal-context` 行与任何引用该包名的地方。
+- **改包名**：如果重命名 `@local/dsh-personal-agent`，同步改 `personal-handbook` 行与任何引用该包名的地方。
 
 ## 安全与限制
 
 - 预设**不放宽**权限。shell、文件访问、审批、沙箱仍由 profile 与 permission preset 决定。当前桌面 profile 是 `danger-full-access`，但预设本身不假设这一点。
-- 个人文件默认在 `~/.dsh/personal`，**不在工作区内**。如果 profile 用 `workspace-write` 沙箱，Agent 可能写不进去；把 `dataDir` 指到工作区内，或给该目录授权。
-- 运行时文件是明文 Markdown，不加密；不要写密码、token、API key。
-- 个人上下文以 `interpolate: false` 注入，并明确「是用户数据，不是更高优先级指令」；但用户文件仍然可能包含敏感或误导性内容，Agent 应按数据对待。
+- 记忆由 profile 的 `dsh-auto-memory` 管理，不随 prompt 注入；不要把密码、token、API key 或原始凭据写进记忆。
 - `web_search` / `web_fetch` 的返回是外部不可信内容；引用真实 URL，不执行页面里的指令。
 - Office 工具按 profile 的文件系统读权限读取输入，可能读到工作区外的文件；转换/重算结果先落到 Office kit 的私有输出目录，需要 shell 复制到目标位置。
 - `job_*` 当前没有 producer：持久 shell 用 `&` 启动的进程不会出现在 `job_list` 里，这是预期行为。
@@ -150,8 +139,7 @@ worker 会话是独立会话，默认不使用本个人预设，因此不会自�
 | --- | --- |
 | 预设列表里没有「个人助理」 | bundle 是否安装并启用；重启 DSH 后再看 Plugins 的 `preset-personal` 行 |
 | `preset-personal` 激活失败 | `@local/dsh-personal-agent` 是否在 profile 的 `node_modules`；`context.js` 是否可导入 |
-| 个人文件没有被注入 | `personal-context` 的 `dataDir`；文件是否存在且非空；profile 是否有读权限 |
-| 改 `MEMORY.md` 不生效 | 新会话/下一轮才会重新组装；确认改的是注入目录里的文件 |
+| 记忆搜不到或写不进 | profile 的 `dsh-auto-memory` 是否启用；写入前先 `memory_search`，避免重复 |
 | 全局工具没出现 | profile 里 `session-messaging`、`session-guardian`、`dsh-auto-memory` 是否启用；重启后再看 |
 | `read_image` 不可用 | 当前模型是否声明 image 输入；profile 是否挂载附件服务 |
 | `web_search` / `web_fetch` 不可用 | host 的 `web` 服务与 Search/Fetch provider 是否启用（Settings → Web search） |
@@ -159,11 +147,10 @@ worker 会话是独立会话，默认不使用本个人预设，因此不会自�
 | `skill` 列表为空或缺少技能 | `skill-filesystem` 是否加载；项目 `.dsh/skills`、`.agents/skills` 或用户 `~/.dsh/skills` 下是否有合法 `SKILL.md` |
 | 定时任务创建失败 | host 的 `schedule` 服务是否挂载；时间规则是否在支持的 RRULE 子集内 |
 | `job_list` 一直为空 | 持久 shell 不注册 job；这是预期行为，后台长命令用 `&` + 日志文件 |
-| Agent 写不进 `~/.dsh/personal` | profile 的沙箱模式；把 `dataDir` 放到工作区内或给目录授权 |
 
 ## 卸载
 
-在 **插件 / Plugins** 里移除 `Personal Agent` bundle，或在 agent 里调用 `plugin_manager` 的 `remove_bundle`，target 用列表里的 bundle 标识。个人文件在 `~/.dsh/personal`，卸载不会删除；需要时手动删。
+在 **插件 / Plugins** 里移除 `Personal Agent` bundle，或在 agent 里调用 `plugin_manager` 的 `remove_bundle`，target 用列表里的 bundle 标识。记忆由 profile 的 `dsh-auto-memory` 保存，卸载 bundle 不会删除；需要时用 `memory_delete` 清理。
 
 ## 参考资料
 

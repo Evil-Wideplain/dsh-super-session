@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "main": "context.js",
-  "description": "A shell-first personal assistant agent preset for DeepSeek Harness: persistent shell, web, Office, goals and schedules, with editable identity and memory.",
+  "description": "A shell-first personal assistant agent preset for DeepSeek Harness: persistent shell, web, Office, goals and schedules; memory comes from the profile's memory plugin.",
   "license": "MIT",
   "exports": {
     ".": "./context.js",
