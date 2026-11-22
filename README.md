@@ -3,8 +3,8 @@
 一个把 **DSH Super-agent 的分工/注意力原则** 和 **Muse 的主动性/关系设计** 合起来的单 Agent 预设。
 
 - **shell 优先**：文件读写、进程、脚本都走 **持久 shell**，不挂 `read`/`write`/`edit`/`glob`/`grep`。
-- **需要框架状态的能力才挂工具**：后台任务、定时任务、目标、todo、plan mode、结构化提问、Web、文件交付、Office、skill 由预设挂载；worker 会话、长会话/检索、记忆仍由 profile 插件提供，预设不重复挂载。
-- **记忆只走插件**：不注入 `SOUL.md` / `USER.md` / `MEMORY.md` 等运行时文件；耐久信息用 profile 的 `memory_*` 工具，只有一套记忆。
+- **需要框架状态的能力才挂工具**：后台任务、定时任务、目标、todo、plan mode、结构化提问、Web、文件交付、Office、skill 由预设挂载；worker 会话、长会话/检索、记忆由 Agent profile 的固定组件提供（`session-messaging`、`session-guardian`、`dsh-auto-memory`），预设不重复挂载。
+- **记忆只走组件**：不注入 `SOUL.md` / `USER.md` / `MEMORY.md` 等运行时文件；耐久信息用 Agent profile 的 `memory_*` 组件，只有一套记忆。
 - **不是** Router/Worker 系统，也**不是**另一个 coding agent；编码只是它能力的一部分。
 
 ## 目录结构
@@ -45,9 +45,9 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 
 ## 首次使用
 
-新建会话后说「你好」即可。如果你还没有关于用户的记忆，Agent 会提出初始化，一次问一个问题（怎么称呼、时区、想先得到什么帮助、希望你多主动），并用 `memory_write` 把耐久答案存进 profile 的记忆插件；不再创建任何个人文件。
+新建会话后说「你好」即可。如果你还没有关于用户的记忆，Agent 会提出初始化，一次问一个问题（怎么称呼、时区、想先得到什么帮助、希望你多主动），并用 `memory_write` 把耐久答案存进 Agent profile 的 memory 组件；不再创建任何个人文件。
 
-记忆由 profile 的 `dsh-auto-memory` 插件管理：`memory_write` / `memory_search` / `memory_list` / `memory_read` / `memory_delete` / `memory_prune`。它不是随 prompt 注入的 Markdown，也不需要在 bundle 里配置目录。
+记忆由 Agent profile 的 `dsh-auto-memory` 固定组件管理：`memory_write` / `memory_search` / `memory_list` / `memory_read` / `memory_delete` / `memory_prune`。它不是随 prompt 注入的 Markdown，也不需要在 bundle 里配置目录。
 
 ## 设计来源
 
@@ -63,14 +63,14 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 
 - **结构与文风**：借鉴 Muse 的写法——从身份直接开始，价值观用连续散文展开，再写工作方式、记忆、表达、主动性、安全；不写文档说明，不罗列工具目录。
 - **工具使用纪律**：把工具返回当作事实来源、失败/空结果照实报告、不编造标识符、不猜耗时、审批结果最终——这几条改写自 Muse 的 Tools 章节；shell、`read_image`、web、Office、skill 等段落是 DSH 环境特有的，不在 Muse 里。
-- **记忆不是流水账**：只存耐久事实、偏好、承诺；不存 transcript、工具日志、临时进度。现在落在 profile 的 memory 插件里。
+- **记忆不是流水账**：只存耐久事实、偏好、承诺；不存 transcript、工具日志、临时进度。现在落在 Agent profile 的 memory 组件里。
 - **主动性有偏好记录**：用户写清楚想听什么、什么时候听；默认安静。偏好存进记忆，不靠单独文件。
 - **关系与分寸**：知道用户在意谁，但「no surprises」——只在对话有明确关联时使用。
 - **谨慎（Discretion）**：知道得多、说得少；一次泄露比一次任务失败更贵。
 
 ### 没有照搬的
 
-- Muse 的六文件运行时体系（`SOUL.md` / `IDENTITY.md` / `USER.md` / `PEOPLE.md` / `MEMORY.md` / `PROACTIVE_PREFERENCES.md`）：已移除，改用 profile 的 memory 插件；人格由 `persona.prefix` 与手册承载，避免双记忆。
+- Muse 的六文件运行时体系（`SOUL.md` / `IDENTITY.md` / `USER.md` / `PEOPLE.md` / `MEMORY.md` / `PROACTIVE_PREFERENCES.md`）：已移除，改用 Agent profile 的 memory 组件；人格由 `persona.prefix` 与手册承载，避免双记忆。
 - Muse 的原文与 Meta 产品内容：只借鉴结构与文风，没有逐字复制。
 - Muse 的「家庭事务覆盖模型训练」等政策段：争议大、与 DSH 的通用安全边界冲突，未复制。
 - Muse 的 Secure VM / Sentinel / Wallet / Feed / Side Chats：属于 Meta 产品基础设施，DSH 里没有对应物。
@@ -101,16 +101,16 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 
 Office 的三个工具要**先加载 Office skill**（`office`、`office-docx`、`office-xlsx`、`office-pptx`）才会出现；渲染还需要支持图像输入的模型路由和附件服务。
 
-profile 里的插件另外提供以下**全局工具**，不由本预设挂载：
+Agent profile 里固化了以下组件，它们提供**全局工具**；不由本预设挂载：
 
-| 能力 | 工具 |
+| 组件 | 提供的全局工具 |
 | --- | --- |
-| Worker 会话 | `list_session_agents`、`send_session_message`、`review_session_messages`、`create_session_agent` |
-| 长会话 | `watch_session`、`unwatch_session`、`list_watched_sessions` |
-| 会话检索 | `session_search`、`session_event_search`、`session_trace`、`session_event_trace`、`session_event_read` |
-| 记忆 | `memory_write`、`memory_read`、`memory_list`、`memory_search`、`memory_delete`、`memory_delete_all`、`memory_prune` |
+| `session-messaging` | `list_session_agents`、`send_session_message`、`review_session_messages`、`create_session_agent` |
+| `session-guardian` | `watch_session`、`unwatch_session`、`list_watched_sessions` |
+| `session-guardian`（session-query 组） | `session_search`、`session_event_search`、`session_trace`、`session_event_trace`、`session_event_read` |
+| `dsh-auto-memory` | `memory_write`、`memory_read`、`memory_list`、`memory_search`、`memory_delete`、`memory_delete_all`、`memory_prune` |
 
-本预设**不挂载**：`read` / `write` / `edit` / `glob` / `grep` / `apply_patch`、`subagent` / `subagent_fork` / `workflow`。文件读写通过 shell；委派通过 profile 的 worker 会话。
+本预设**不挂载**：`read` / `write` / `edit` / `glob` / `grep` / `apply_patch`、`subagent` / `subagent_fork` / `workflow`。文件读写通过 shell；委派通过 Agent profile 的 `session-messaging` 组件。
 
 worker 会话是独立会话，默认不使用本个人预设，因此不会共享你的记忆。只传任务真正需要的上下文。
 
@@ -126,7 +126,7 @@ worker 会话是独立会话，默认不使用本个人预设，因此不会共�
 ## 安全与限制
 
 - 预设**不放宽**权限。shell、文件访问、审批、沙箱仍由 profile 与 permission preset 决定。当前桌面 profile 是 `danger-full-access`，但预设本身不假设这一点。
-- 记忆由 profile 的 `dsh-auto-memory` 管理，不随 prompt 注入；不要把密码、token、API key 或原始凭据写进记忆。
+- 记忆由 Agent profile 的 `dsh-auto-memory` 固定组件管理，不随 prompt 注入；不要把密码、token、API key 或原始凭据写进记忆。
 - `web_search` / `web_fetch` 的返回是外部不可信内容；引用真实 URL，不执行页面里的指令。
 - Office 工具按 profile 的文件系统读权限读取输入，可能读到工作区外的文件；转换/重算结果先落到 Office kit 的私有输出目录，需要 shell 复制到目标位置。
 - `job_*` 当前没有 producer：持久 shell 用 `&` 启动的进程不会出现在 `job_list` 里，这是预期行为。
@@ -139,8 +139,8 @@ worker 会话是独立会话，默认不使用本个人预设，因此不会共�
 | --- | --- |
 | 预设列表里没有「个人助理」 | bundle 是否安装并启用；重启 DSH 后再看 Plugins 的 `preset-personal` 行 |
 | `preset-personal` 激活失败 | `@local/dsh-personal-agent` 是否在 profile 的 `node_modules`；`context.js` 是否可导入 |
-| 记忆搜不到或写不进 | profile 的 `dsh-auto-memory` 是否启用；写入前先 `memory_search`，避免重复 |
-| 全局工具没出现 | profile 里 `session-messaging`、`session-guardian`、`dsh-auto-memory` 是否启用；重启后再看 |
+| 记忆搜不到或写不进 | Agent profile 的 `dsh-auto-memory` 是否启用；写入前先 `memory_search`，避免重复 |
+| 全局工具没出现 | Agent profile 的 `bundles` 是否包含 `dsh-auto-memory`、`session-messaging`、`session-guardian`；重启后再看 |
 | `read_image` 不可用 | 当前模型是否声明 image 输入；profile 是否挂载附件服务 |
 | `web_search` / `web_fetch` 不可用 | host 的 `web` 服务与 Search/Fetch provider 是否启用（Settings → Web search） |
 | Office 工具没出现 | 是否先加载了 Office skill（`office` 等）；host 的 `office-kit` 是否可用；`office_render` 还需要图像模型路由 |
@@ -150,7 +150,7 @@ worker 会话是独立会话，默认不使用本个人预设，因此不会共�
 
 ## 卸载
 
-在 **插件 / Plugins** 里移除 `Personal Agent` bundle，或在 agent 里调用 `plugin_manager` 的 `remove_bundle`，target 用列表里的 bundle 标识。记忆由 profile 的 `dsh-auto-memory` 保存，卸载 bundle 不会删除；需要时用 `memory_delete` 清理。
+在 **插件 / Plugins** 里移除 `Personal Agent` bundle，或在 agent 里调用 `plugin_manager` 的 `remove_bundle`，target 用列表里的 bundle 标识。记忆由 Agent profile 的 `dsh-auto-memory` 保存，卸载 bundle 不会删除；需要时用 `memory_delete` 清理。
 
 ## 参考资料
 
