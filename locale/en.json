@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "Personal Agent",
-    "description": "A shell-first personal assistant with web, Office, goals, schedules, and profile-managed memory.",
+    "title": "Personal Agent and Worker",
+    "description": "Two agent presets: a shell-first personal assistant with web, Office, goals and schedules, and a worker preset for briefed, verified delegation.",
     "detail": "docs/DETAIL.md"
   }
 }

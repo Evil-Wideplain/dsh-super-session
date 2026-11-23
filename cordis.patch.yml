@@ -1,7 +1,7 @@
-# Personal Agent preset — shell-first, with the interaction tools that need a
-# framework rather than a shell.
+# Two agent presets, one bundle: `personal` (the assistant the user talks to)
+# and `worker` (the session a lead dispatches with a brief).
 #
-# The preset mounts:
+# The personal preset mounts:
 #
 # - a persistent shell (bash on non-Windows, PowerShell on Windows);
 # - `read_image` for visual inspection (tool-fs with every other file tool off);
@@ -178,5 +178,144 @@
           # Office viewing/conversion/recalculation. The three tools activate
           # after an Office skill (office, office-docx, office-xlsx,
           # office-pptx) loads; the skill provider comes from the host plane.
+          - id: tool-office
+            name: '@deepseek-ai/dsh-tool-office'
+
+# Worker preset — the environment of a bounded task, without the interactive
+# surface. A lead session hands this preset a self-contained brief and expects
+# a verified result back; the conversation with the user stays with the lead.
+#
+# It mounts the shell-based working surface (persistent shell, jobs, todos, web,
+# Office, skills, image recognition) plus goals, so a brief that spans many
+# rounds keeps one objective and continues on its own. It deliberately does not
+# mount the rest of the interaction surface: no schedules, plan mode, questions
+# or file presentation, because the lead owns those. `send_session_message`
+# arrives from the profile's session-messaging plugin, not from this preset.
+
+- insert:
+    - id: preset-worker
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: worker
+        name: 工作会话（Worker）
+        description: 主会话派发的执行会话：读简报、干活、核验，并把结果发回派发方。
+        order: 21
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              # The standard preset's persona line, kept nearly verbatim, plus the
+              # worker role. The handbook carries the rest of the operating prompt.
+              prefix: |
+                You are a coding agent powered by the {{model}} model. You are running as a worker session: a lead session dispatched you with a self-contained brief, you carry it to completion, and you report the result back. You do not talk to the end user. Reply in the language of the brief.
+
+          # Same handbook plugin as the personal preset, pointed at the worker
+          # handbook. It is the only row that differs in purpose, not in code.
+          - id: worker-handbook
+            name: '@local/dsh-personal-agent'
+            config:
+              handbookPath: ./prompt/worker.md
+
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+
+          # Image recognition only, same as the personal preset.
+          - id: image
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              read: false
+              readImage: true
+              write: false
+              edit: false
+              applyPatch: false
+
+          # Same persistent shell as the personal preset: a PTY, a terminal, and
+          # the persistent bash/pwsh tool (5-minute timeout).
+          - id: persistent-shell
+            name: cordis:group
+            group: true
+            isolate:
+              terminals: true
+            config:
+              - id: pty
+                name: '@deepseek-ai/dsh-terminal'
+              - id: terminal-bash
+                name: '@deepseek-ai/dsh-terminal-bash'
+                disabled: !!js process.platform === 'win32'
+                config:
+                  timeoutMs: 300000
+              - id: persistent-bash
+                name: '@deepseek-ai/dsh-tool-bash-persistent'
+                disabled: !!js process.platform === 'win32'
+                config:
+                  timeoutMs: 300000
+                  description: |-
+                    Run commands in a bash shell
+                    * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
+                    * Network access depends on the task environment. Prefer configured mirrors/proxies when they are available.
+                    * State is persistent across command calls and discussions with the user.
+                    * To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.
+                    * Please avoid commands that may produce a very large amount of output.
+                    * Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.
+              - id: terminal-pwsh
+                name: '@deepseek-ai/dsh-terminal-bash'
+                disabled: !!js process.platform !== 'win32'
+                config:
+                  shellDialect: pwsh
+                  timeoutMs: 300000
+              - id: persistent-pwsh
+                name: '@deepseek-ai/dsh-tool-pwsh-persistent'
+                disabled: !!js process.platform !== 'win32'
+                config:
+                  timeoutMs: 300000
+                  description: |-
+                    Run commands in a PowerShell shell
+                    * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
+                    * Network access depends on the task environment. Prefer configured mirrors/proxies when they are available.
+                    * State is persistent across command calls and discussions with the user.
+                    * Use native Windows paths (C:\...) and $env:NAME variables; this is PowerShell, not bash.
+                    * Please avoid commands that may produce a very large amount of output.
+                    * Please run long lived commands in the background, e.g. 'Start-Job' or start a server with Start-Process.
+
+          # Background-job controls for long shell commands.
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+
+          # Skills: same registry row as the personal preset.
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+            config:
+              customSkillDirs:
+                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-agent-preset/package.json')), 'skills')
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+
+          # Progress tracking for multi-step work.
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+
+          # Goals: the goal service and its round driver stay on the host plane;
+          # the preset owns the model-facing tool and the /goal command. This is
+          # what keeps a long brief on one objective across rounds.
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+
+          # Office reading/writing/conversion; the three tools activate after an
+          # Office skill loads. No `present`: the lead delivers files.
           - id: tool-office
             name: '@deepseek-ai/dsh-tool-office'

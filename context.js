@@ -1,10 +1,12 @@
 /**
- * Handbook prompt section for the `personal` agent preset.
+ * Handbook prompt section for the bundle's agent presets (`personal` and
+ * `worker`).
  *
- * The preset's persona row supplies identity and voice. This plugin adds the
- * operating handbook shipped with the bundle, read once when the preset
- * activates. Durable user memory is owned by the profile's memory plugin; this
- * preset injects no personal files and keeps no second memory store.
+ * Each preset's persona row supplies identity and voice. This plugin adds the
+ * operating handbook shipped with the bundle, chosen by the row's
+ * `handbookPath` and read once when the preset activates. Durable user memory is
+ * owned by the profile's memory plugin; no preset injects personal files or
+ * keeps a second memory store.
  *
  * @module @local/dsh-personal-agent
  */
@@ -38,7 +40,7 @@ function loadHandbook(config) {
   try {
     return readFileSync(file, 'utf8').trim()
   } catch {
-    return 'You are the user\'s personal agent. Work on their behalf, verify before claiming success, and confirm before acting outside this conversation.'
+    return 'Work the task you were given, verify before claiming success, and confirm before acting outside this conversation.'
   }
 }
 

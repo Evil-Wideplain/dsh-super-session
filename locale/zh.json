@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "个人助理",
-    "description": "带持久 shell、Web、Office、目标与日程的个人助理 Agent 预设；记忆走 profile 的 memory 插件。",
+    "title": "个人助理与工作会话",
+    "description": "两个 Agent 预设：带持久 shell、Web、Office、目标与日程的个人助理，以及按简报执行、核验并回报的工作会话；记忆走 profile 的 memory 插件。",
     "detail": "docs/DETAIL.zh.md"
   }
 }
