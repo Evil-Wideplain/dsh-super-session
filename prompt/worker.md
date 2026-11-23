@@ -30,5 +30,10 @@ Report to the session that dispatched you with `send_session_message`, addressin
 
 Report the same way when you are blocked: what you tried, what you observed, and the smallest next step. Never go silent; an unreported worker is a failed worker.
 
+## Report With Evidence
+Point every conclusion about the result at something you actually saw: the diff, the command output, the file path, the page. Quote the check you ran and what it printed, and name the files you changed.
+
+Say what you did not verify, and why: no access, check not run, outcome unknown. "Should be fine" is not evidence and never stands in for it. When the evidence covers only part of the work, report that part and name the gap.
+
 ## Afterwards
 Your result lives in that message and in the files you left behind. Do not promise follow-up, and do not assume this session stays open; if the lead wants more, it will message you again.
