@@ -1,15 +1,17 @@
 /**
  * Browser half of the bundle: the sidebar panel row named "Super Session".
  *
- * There is exactly one super session, and its identity is the Workspace it
- * lives in: the fixed directory `<Host home>/super-agent`. The first visit
- * registers that directory as a Workspace and creates one Session on the
- * `personal` preset; every later visit reopens the newest unarchived Session
- * of the same Workspace. The page registered for the panel id only resolves
- * that Session and hands the navigation to ui-workspace, which returns the
- * main column to the Conversation. Nothing is painted on the successful path;
- * a status line appears only when resolution is slow, and failures stay on
- * this page with a retry action.
+ * There is exactly one super session, and its identity is the built-in
+ * Workspace the Host creates at startup: `<Documents>/deepseek-harness/
+ * super-workspace`, titled "Super Workspace". This half only finds that
+ * Workspace in the registry — by path tail or by title — then opens the newest
+ * unarchived Session in it, creating one on the `personal` preset when the
+ * Workspace is empty. It never registers a Workspace and never guesses a path.
+ * The page registered for the panel id only resolves that Session and hands the
+ * navigation to ui-workspace, which returns the main column to the
+ * Conversation. Nothing is painted on the successful path; a status line
+ * appears only when resolution is slow, and failures stay on this page with a
+ * retry action.
  *
  * Constraints (see AGENTS.md): this file is plain JavaScript loaded by
  * `window.__ModuleLoader__` — no build step, no imports. React is the only
@@ -35,10 +37,17 @@ window.__ModuleLoader__.load({
     const AGENT_PRESET = 'personal'
 
     /**
-     * Directory under the Host home that holds the super session. The Host
-     * half creates it on startup; the first click registers it as a Workspace.
+     * Title of the built-in Workspace. The Host registers it with this title at
+     * startup; matching it is a second way to recognize the Workspace when its
+     * path spelling differs.
      */
-    const WORKSPACE_LEAF = 'super-agent'
+    const WORKSPACE_TITLE = 'Super Workspace'
+
+    /**
+     * Path tail that identifies the Workspace, folded to forward slashes and
+     * lower case. The Host creates it under `<Documents>/deepseek-harness`.
+     */
+    const WORKSPACE_PATH_TAIL = 'deepseek-harness/super-workspace'
 
     /** How long resolution may take before the page admits it is working. */
     const SLOW_OPEN_MS = 200
@@ -59,7 +68,7 @@ window.__ModuleLoader__.load({
         'action.retry': '重试',
         'error.create': '创建会话失败：{message}',
         'error.open': '打开会话失败：{message}',
-        'error.workspace': '无法准备超级会话的工作区：{message}',
+        'error.notReady': '超级会话的工作区还没准备好：重启 DSH 后它会自动建好',
         'error.unavailable': '会话服务尚未就绪，请稍后再试。',
         'session.title': '超级会话',
       },
@@ -69,7 +78,7 @@ window.__ModuleLoader__.load({
         'action.retry': 'Retry',
         'error.create': 'Could not create the session: {message}',
         'error.open': 'Could not open the session: {message}',
-        'error.workspace': 'Could not prepare the super session workspace: {message}',
+        'error.notReady': 'The super session workspace is not ready yet: restart DSH and it will be created automatically.',
         'error.unavailable': 'The session service is not ready yet; try again shortly.',
         'session.title': 'Super Session',
       },
@@ -233,95 +242,44 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The Host home directory, available once the ready frame has landed.
+     * Fold a Host path for comparison: one separator style, no trailing
+     * separators, lower case.
+     * @param {string} value - a path spelling.
+     * @returns The folded key.
+     */
+    function foldPath(value) {
+      return value
+        .split('\\')
+        .join('/')
+        .replace(/\/{2,}/g, '/')
+        .replace(/\/+$/, '')
+        .toLowerCase()
+    }
+
+    /**
+     * Whether one Workspace row is the built-in Super Workspace. The title match
+     * catches a redirected or differently spelled path; the path tail catches a
+     * Workspace whose title was changed.
+     * @param {any} item - a Workspace view from the list snapshot.
+     * @returns True for the Super Workspace.
+     */
+    function isSuperWorkspace(item) {
+      if (item === undefined || item === null) return false
+      if (typeof item.title === 'string' && item.title.trim() === WORKSPACE_TITLE) return true
+      if (typeof item.path !== 'string' || item.path === '') return false
+      const folded = foldPath(item.path)
+      return folded === WORKSPACE_PATH_TAIL || folded.endsWith('/' + WORKSPACE_PATH_TAIL)
+    }
+
+    /**
+     * The built-in Workspace, when the Host has registered it.
      * @param {any} ctx - Client root context.
-     * @returns The home path, or undefined before the handshake.
+     * @returns The Workspace view, or undefined before the Host registers it.
      */
-    function hostHome(ctx) {
-      try {
-        const home = ctx.get('remote')?.$host?.home
-        return typeof home === 'string' && home !== '' ? home : undefined
-      } catch (_reason) {
-        return undefined
-      }
-    }
-
-    /**
-     * Build the super session's fixed Workspace path.
-     * @param {string} home - Host home directory.
-     * @returns `<home>/super-agent` with the home's own separator style.
-     */
-    function superWorkspacePath(home) {
-      const base = home.replace(/[\\/]+$/, '')
-      const separator = base.includes('\\') ? '\\' : '/'
-      return `${base}${separator}${WORKSPACE_LEAF}`
-    }
-
-    /**
-     * Whether two Host paths name the same directory, ignoring separator
-     * style, trailing separators, and letter case.
-     * @param {unknown} left - one path.
-     * @param {unknown} right - the other path.
-     * @returns True when both spellings fold to the same key.
-     */
-    function samePath(left, right) {
-      if (typeof left !== 'string' || typeof right !== 'string' || left === '' || right === '') return false
-      const fold = (value) => value.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase()
-      return fold(left) === fold(right)
-    }
-
-    /**
-     * The already registered Workspace at `path`, when the list carries it.
-     * @param {any} ctx - Client root context.
-     * @param {string} path - candidate Workspace path.
-     * @returns The Workspace view, or undefined.
-     */
-    function workspaceAt(ctx, path) {
+    function findSuperWorkspace(ctx) {
       const snapshot = workspaceSnapshot(ctx)
       const items = snapshot && Array.isArray(snapshot.items) ? snapshot.items : []
-      return items.find((item) => samePath(item.path, path))
-    }
-
-    /**
-     * Resolve the Workspace the super session lives in.
-     *
-     * The fixed directory under the Host home is the normal answer. Its
-     * absence from the registry is a first visit: register it, which is
-     * idempotent Host-side and requires the directory the Host half already
-     * created. Until the Host home is known, fall back to the legacy heuristic
-     * so the entry keeps working; that path never adopts an unrelated Session.
-     * @param {any} ctx - Client root context.
-     * @param {(key: string, params?: Record<string, unknown>) => string} t - bound translate.
-     * @returns The Workspace view (when resolved) and whether it is the fixed one.
-     */
-    async function resolveSuperWorkspace(ctx, t) {
-      const home = hostHome(ctx)
-      if (home !== undefined) {
-        const path = superWorkspacePath(home)
-        const known = workspaceAt(ctx, path)
-        if (known !== undefined) return { workspace: known, dedicated: true }
-        const workspaces = ctx.get('workspaces')
-        if (workspaces && typeof workspaces.create === 'function') {
-          let created
-          try {
-            created = await workspaces.create({ path })
-          } catch (reason) {
-            throw new Error(t('error.workspace', { message: messageOf(reason) }))
-          }
-          const view = created && created.workspace ? created.workspace : created
-          if (view && view.workspaceId !== undefined) return { workspace: view, dedicated: true }
-          // An older Host answers without the row: the follow stream fills it.
-          const relisted = workspaceAt(ctx, path)
-          if (relisted !== undefined) return { workspace: relisted, dedicated: true }
-        }
-      }
-      const workspaceId = currentWorkspaceId(ctx)
-      const snapshot = workspaceSnapshot(ctx)
-      const items = snapshot && Array.isArray(snapshot.items) ? snapshot.items : []
-      return {
-        workspace: items.find((item) => item.workspaceId === workspaceId),
-        dedicated: false,
-      }
+      return items.find((item) => isSuperWorkspace(item))
     }
 
     /**
@@ -339,7 +297,7 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * The super session inside the dedicated Workspace: the one this run
+     * The super session inside the built-in Workspace: the one this run
      * opened, else the most recently updated unarchived member. Archived
      * Sessions keep their `sessionIds` slot so unarchiving restores the
      * position, which is why the archive set is what excludes them.
@@ -364,62 +322,6 @@ window.__ModuleLoader__.load({
       // The Host prepends the newest attachment, the best answer available
       // while the Session list has not caught up with the Workspace yet.
       return ranked.length > 0 ? ranked[0].id : members[0]
-    }
-
-    /** Parse a timestamp defensively for ordering. */
-    function stamp(value) {
-      const parsed = Date.parse(value || '')
-      return Number.isNaN(parsed) ? 0 : parsed
-    }
-
-    /**
-     * Find a Workspace when the Host home is unknown: the current Session's
-     * when one is still retained, then the most recently updated Session's,
-     * then the newest Workspace, else none (the Host default applies).
-     * @param {any} ctx - Client root context.
-     * @returns A Workspace id, or undefined.
-     */
-    function currentWorkspaceId(ctx) {
-      try {
-        const sessions = ctx.get('sessions')
-        const workspaces = ctx.get('workspaces')
-        const list = sessions && sessions.list && typeof sessions.list.getSnapshot === 'function'
-          ? sessions.list.getSnapshot()
-          : undefined
-        const snapshot = workspaces && workspaces.list && typeof workspaces.list.getSnapshot === 'function'
-          ? workspaces.list.getSnapshot()
-          : undefined
-        const items = snapshot && Array.isArray(snapshot.items) ? snapshot.items : []
-        if (items.length === 0) return undefined
-        const ids = list && Array.isArray(list.ids) ? list.ids : []
-        const byId = (list && list.byId) || {}
-        const ownerOf = (sessionId, summary) => items.find((item) => {
-          if (Array.isArray(item.sessionIds) && item.sessionIds.includes(sessionId)) return true
-          return summary !== undefined && typeof summary.cwd === 'string' && item.path === summary.cwd
-        })
-        const currentId = ids.find((id) => {
-          const retained = byId[id] && byId[id].retainedBy
-          return Boolean(retained && (retained.mainView || 0) > 0)
-        })
-        if (currentId !== undefined) {
-          const owner = ownerOf(currentId, byId[currentId])
-          if (owner !== undefined) return owner.workspaceId
-        }
-        const recent = ids
-          .map((id) => byId[id])
-          .filter((summary) => summary !== undefined)
-          .sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0))[0]
-        if (recent !== undefined) {
-          const owner = ownerOf(recent.id, recent)
-          if (owner !== undefined) return owner.workspaceId
-        }
-        const newest = items
-          .slice()
-          .sort((left, right) => stamp(right.createdAt) - stamp(left.createdAt))[0]
-        return newest === undefined ? undefined : newest.workspaceId
-      } catch (_reason) {
-        return undefined
-      }
     }
 
     /**
@@ -475,11 +377,12 @@ window.__ModuleLoader__.load({
       if (!sessions || typeof sessions.create !== 'function' || typeof sessions.binding !== 'function') {
         throw new Error(t('error.unavailable'))
       }
-      const resolved = await resolveSuperWorkspace(ctx, t)
-      const workspaceId = resolved.workspace && resolved.workspace.workspaceId
-      let sessionId = resolved.dedicated
-        ? superSessionIn(ctx, resolved.workspace)
-        : openedSessionIn(ctx, resolved.workspace)
+      const workspace = findSuperWorkspace(ctx)
+      if (workspace === undefined || workspace.workspaceId === undefined) {
+        throw new Error(t('error.notReady'))
+      }
+      const workspaceId = workspace.workspaceId
+      let sessionId = superSessionIn(ctx, workspace)
       if (sessionId === undefined) {
         sessionId = await createSuperSession(sessions, workspaceId, t)
         if (!stillHere()) return

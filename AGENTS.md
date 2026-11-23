@@ -17,8 +17,8 @@
 |------|------|
 | `cordis.patch.yml` | 三个预设的声明（`preset-personal`、`preset-worker`、`preset-manager`）：id、显示名、描述、`persona.prefix`、插件行与工具清单 |
 | `context.js` | 预设插件：按该行的 `handbookPath` 读一份手册，注册 `personal:handbook` prompt 段；只用 `node:` 内置依赖 |
-| `client.js` | Client（浏览器端）插件：侧边栏「超级会话」入口，选中后直接打开固定工作区 `<Host home>/super-agent` 里的那一个常驻会话（第一次点注册该工作区并建会话，面板页只做解析与跳转）；只 `require('react')`，不编译 |
-| `index.js` | Host 半边：`apply()` 幂等地准备 `<Host home>/super-agent` 目录（浏览器端首次点击要把它注册成工作区），并让 Loader 挂载包、发现 `dsh.client` 声明；包的 `main` 与 `exports["."]` 都指向它 |
+| `client.js` | Client（浏览器端）插件：侧边栏「超级会话」入口，选中后直接打开内置工作区 `<Documents>\deepseek-harness\super-workspace`（标题 `Super Workspace`，Host 开机建好并注册）里的那一个常驻会话；按路径尾部或标题认工作区，认不到就显示「重启 DSH」错误并可重试，面板页只做解析与跳转；只 `require('react')`，不编译 |
+| `index.js` | Host 半边：开机解析 Documents（先 `~/Documents`，不成立再走 powershell 的 `GetFolderPath`），幂等创建 `<Documents>\deepseek-harness\super-workspace` 并用 `workspaceRegistry.create(path, 'Super Workspace')` 注册（用 `ctx.inject` 等注册表就绪，失败只 warn），同时让 Loader 挂载包、发现 `dsh.client` 声明；包的 `main` 与 `exports["."]` 都指向它 |
 | `prompt/handbook.md` | 个人助理手册（英文；个人预设未设 `handbookPath` 时的默认） |
 | `prompt/handbook.zh.md` | 个人助理手册（中文），章节与英文一一对应 |
 | `prompt/worker.md` | 工作会话手册（英文），工作预设默认读它 |
