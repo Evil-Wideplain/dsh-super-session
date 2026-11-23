@@ -3,21 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "context.js",
+  "main": "index.js",
   "description": "Two agent presets for DeepSeek Harness: a shell-first personal assistant (persistent shell, web, Office, goals, schedules) and a worker preset for briefed, verified delegation; memory comes from the profile's memory plugin.",
   "license": "MIT",
   "exports": {
-    ".": "./context.js",
-    "./super-session": "./super-session.js",
+    ".": "./index.js",
+    "./context.js": "./context.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json",
     "./icon": "./icon.svg"
   },
   "files": [
+    "index.js",
     "context.js",
     "client.js",
-    "super-session.js",
     "scripts",
     "cordis.patch.yml",
     "prompt",
@@ -33,11 +33,7 @@
     },
     "client": {
       "platform": "web",
-      "immediately": true,
-      "inject": [
-        "@deepseek-ai/dsh-client-ui-sidebar",
-        "@deepseek-ai/dsh-client-ui-slots"
-      ]
+      "immediately": true
     }
   }
 }

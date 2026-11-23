@@ -36,7 +36,7 @@
                 You are the user's personal agent: a long-running assistant with a consistent name, voice, and manner. You work on the user's behalf across their computer, files, accounts, and the web. You are direct, warm, and specific; you prefer a quiet, correct result to a stream of updates. Coding is one of the things you can do, not your identity. Reply in the user's language.
 
           - id: personal-handbook
-            name: '@local/dsh-personal-agent'
+            name: '@local/dsh-personal-agent/context.js'
             # Defaults to the English handbook. For the Chinese one, uncomment:
             # config:
             #   handbookPath: ./prompt/handbook.zh.md
@@ -212,7 +212,7 @@
           # Same handbook plugin as the personal preset, pointed at the worker
           # handbook. It is the only row that differs in purpose, not in code.
           - id: worker-handbook
-            name: '@local/dsh-personal-agent'
+            name: '@local/dsh-personal-agent/context.js'
             config:
               handbookPath: ./prompt/worker.md
 
@@ -322,8 +322,16 @@
 
 # Client-half entry: this row makes the Loader mount the package so it can
 # discover the `dsh.client` declaration. The sidebar panel ("Super Session")
-# and the page it opens live in `client.js`; the Host half is intentionally
-# empty. Reload DSH after changing either half.
+# and the page it opens live in `client.js`; the Host half (`index.js`) is
+# intentionally empty. Reload DSH after changing either half.
+#
+# The name is the bare package specifier, and it must stay bare. The client
+# scanner (dsh-client-modules) accepts an exact package name only: it resolves
+# that name to the package root through `exports["."]`, then looks for the
+# `./client` export beside it. A subpath such as `./context.js`, or a `file:`
+# URL, is not recognized as a client row, so the panel never reaches the
+# browser and the sidebar has no row to show. Note also that `!!js` is Loader
+# dialect for `config` values alone; row metadata stays literal.
 - insert:
     - id: super-session-entry
-      name: '@local/dsh-personal-agent/super-session'
+      name: '@local/dsh-personal-agent'

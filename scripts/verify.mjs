@@ -102,6 +102,38 @@ function field(body, key) {
   return ''
 }
 
+/**
+ * The package name the client scanner accepts, mirroring
+ * `exactPackageSpecifier` in `dsh-client-modules`: a bare name, or a scope
+ * plus one segment. It rejects subpaths, relative paths, and `file:` URLs, and
+ * a row whose name fails this test is never treated as a client row.
+ */
+function exactPackageName(specifier) {
+  if (!specifier) return ''
+  if (specifier.startsWith('@')) {
+    const parts = specifier.split('/')
+    return parts.length === 2 && parts.every(Boolean) ? specifier : ''
+  }
+  return specifier.includes('/') || specifier.includes(':') ? '' : specifier
+}
+
+/**
+ * Name of the Loader row that mounts the package for the client scanner.
+ *
+ * Recognised by its id, so the row can move within the file without the check
+ * drifting.
+ */
+function clientRowName() {
+  const lines = readFileSync(resolve(ROOT, 'cordis.patch.yml'), 'utf8').split('\n')
+  const start = lines.findIndex(line => line.trim() === '- id: super-session-entry')
+  if (start < 0) return ''
+  for (const line of lines.slice(start + 1)) {
+    const named = line.match(/^\s*name: (.+)$/)
+    if (named) return unquote(named[1])
+  }
+  return ''
+}
+
 async function main() {
   const manifest = readJson('package.json')
   const plugin = await import(pathToFileURL(resolve(ROOT, 'context.js')).href)
@@ -146,7 +178,10 @@ async function main() {
     check(pluginName === '@deepseek-ai/dsh-agent-preset', `${block.id} uses the preset plugin`, pluginName)
     const presetId = field(block.body, 'id')
     check(Boolean(presetId), `${block.id} declares a preset id`, presetId)
-    check(block.body.includes("name: '@local/dsh-personal-agent'"), `${block.id} mounts the handbook plugin`)
+    check(
+      block.body.includes("name: '@local/dsh-personal-agent/context.js'"),
+      `${block.id} mounts the handbook plugin`,
+    )
     const configured = field(block.body, 'handbookPath')
     if (configured) {
       check(existsSync(plugin.handbookFile({ handbookPath: configured })), `${block.id} handbookPath resolves`, configured)
@@ -155,6 +190,17 @@ async function main() {
     const paths = [field(block.body, 'handbookPath')]
     check(paths.length > 0, `${block.id} names one handbook`)
   }
+
+  // The sidebar panel only reaches the browser when the Loader row is named by
+  // the bare package specifier: the client scanner resolves that name to the
+  // package root and reads the `./client` export beside it. A subpath or a
+  // `file:` URL is skipped as a non-client row, which is silent from here and
+  // expensive to rediscover from the UI.
+  const rowName = clientRowName()
+  check(exactPackageName(rowName) === manifest.name, 'client row is named by the bare package', rowName || '(missing)')
+  check(manifest.dsh?.client?.platform === 'web', 'manifest declares a web client half', String(manifest.dsh?.client?.platform))
+  const clientExport = manifest.exports?.['./client']
+  check(typeof clientExport === 'string' && existsSync(resolve(ROOT, clientExport)), 'manifest ./client export exists', clientExport ?? '(missing)')
 
   if (process.argv.includes('--handbook')) {
     for (const block of blocks) {
