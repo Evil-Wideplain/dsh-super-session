@@ -14,8 +14,8 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
   package.json                 # bundle 清单：dsh.bundle.patch
   cordis.patch.yml             # 两个预设的声明 + 各自的工具清单
   context.js                   # 预设插件：按 handbookPath 注入手册
-  client.js                    # 浏览器端插件：侧边栏「超级会话」面板与面板页
-  super-session.js             # Host 半边空插件：让 Loader 发现 dsh.client
+  client.js                    # 浏览器端插件：侧边栏「超级会话」入口，直接进那一个会话
+  index.js                     # Host 半边空插件：让 Loader 发现 dsh.client
   prompt/
     handbook.md                # 个人助理手册（英文，默认）
     handbook.zh.md             # 个人助理手册（中文）
@@ -96,7 +96,9 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 | Office | `office_render` / `office_convert` / `office_recalculate` |
 | 技能 | `skill` |
 
-bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 会在主栏打开一页，按「新建超级会话」用 **个人助理** 预设新开一个会话。它不增加工具，只调用已有的 session / workspace 服务。
+bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 就是你那一个常驻会话，点它直接进对话，没有中间页、也没有「新建」按钮。第一次点会用 **个人助理** 预设建一个标题为 `超级会话` 的会话并记住它，以后每次都回到同一个；把它归档了，再点会另建一个。它不增加工具，只调用已有的 session / workspace 服务。
+
+面板要出现在侧边栏，`cordis.patch.yml` 里那条 client 行的 `name` 必须写成**裸包名** `@local/dsh-personal-agent`：客户端扫描器只认包名（或 `@scope/名`），它把名字解析到包根，再读包根旁边的 `./client` 导出。写成子路径（例如 `@local/dsh-personal-agent/context.js`）或 `file:` URL 都会被当成非 client 行静默跳过，侧边栏什么都不显示，也不会报错。
 
 `working_directory` 由 Web 的 host 层提供给所有预设，**不需要也不应该**在预设里再挂一次；重复挂载会注册同名工具。
 

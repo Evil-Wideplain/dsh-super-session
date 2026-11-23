@@ -1,13 +1,15 @@
 /**
- * Browser half of the bundle: a sidebar panel row named "Super Session" and
- * the page it opens in the main column.
+ * Browser half of the bundle: the sidebar panel row named "Super Session".
  *
- * The row registers into `sidebar.panellist` (the same list as Plugins and
- * Context) and only draws an icon; the shell owns selection and navigation.
- * The page registers into the keyed `main` slot under the same id, so clicking
- * the row switches the centre column to it. Its single button creates a Session
- * on the `personal` preset, opens it, and renames it best-effort; every failure
- * is shown as one line under the button instead of a dialog.
+ * There is exactly one super session. Selecting the row puts the user straight
+ * into that conversation instead of offering a launcher: the page registered
+ * for the panel id only resolves which Session the super session is — the one
+ * a previous visit stored, an existing Session that already carries the title,
+ * or a freshly created one on the `personal` preset — and then hands the
+ * navigation to ui-workspace, which returns the main column to the
+ * Conversation. Nothing is painted on the successful path; a status line
+ * appears only when resolution is slow, and failures stay on this page with a
+ * retry action.
  *
  * Constraints (see AGENTS.md): this file is plain JavaScript loaded by
  * `window.__ModuleLoader__` — no build step, no imports. React is the only
@@ -29,30 +31,41 @@ window.__ModuleLoader__.load({
     /** Locale namespace owned by this plugin. */
     const NS = 'super-session'
 
-    /** Agent preset the button starts. The profile default is the same. */
+    /** Agent preset the super session runs. The profile default is the same. */
     const AGENT_PRESET = 'personal'
+
+    /** Where the one super session's id is remembered between visits. */
+    const POINTER_KEY = 'dsh.personal-agent.v1.super-session'
+
+    /**
+     * Titles that mark an existing Session as the super session. Creation
+     * writes the localized one; the other lets a Session titled in a different
+     * UI language be adopted instead of duplicated.
+     */
+    const TITLES = ['超级会话', 'Super Session']
+
+    /** How long resolution may take before the page admits it is working. */
+    const SLOW_OPEN_MS = 200
 
     /** Dictionaries; `zh` and `en` must carry the same keys. */
     const DICTIONARIES = {
       zh: {
         title: '超级会话',
-        description: '用个人助理预设开一个会话：持久 shell、Web、Office、定时任务都在，长活可以直接派给工作会话。',
-        'action.create': '新建超级会话',
-        'action.creating': '正在创建…',
-        'error.create': '创建失败：{message}',
-        'error.open': '会话已创建，但打开失败：{message}',
+        'status.opening': '正在打开超级会话…',
+        'action.retry': '重试',
+        'error.create': '创建会话失败：{message}',
+        'error.open': '打开会话失败：{message}',
         'error.unavailable': '会话服务尚未就绪，请稍后再试。',
-        'session.title': '超级会话 · {time}',
+        'session.title': '超级会话',
       },
       en: {
         title: 'Super Session',
-        description: 'Start a session on the personal preset: persistent shell, web, Office and schedules are all there, and long work can go straight to a worker session.',
-        'action.create': 'New super session',
-        'action.creating': 'Creating…',
+        'status.opening': 'Opening your super session…',
+        'action.retry': 'Retry',
         'error.create': 'Could not create the session: {message}',
-        'error.open': 'The session was created but could not be opened: {message}',
+        'error.open': 'Could not open the session: {message}',
         'error.unavailable': 'The session service is not ready yet; try again shortly.',
-        'session.title': 'Super Session · {time}',
+        'session.title': 'Super Session',
       },
     }
 
@@ -73,15 +86,11 @@ window.__ModuleLoader__.load({
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-  width: 100%;
-  max-width: 560px;
+  align-items: center;
+  gap: 10px;
+  max-width: 420px;
   margin: auto;
-  padding: 28px;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-alias-bg-layer-1);
+  text-align: center;
 }
 .dss-super-mark {
   display: inline-flex;
@@ -89,60 +98,43 @@ window.__ModuleLoader__.load({
   justify-content: center;
   width: 40px;
   height: 40px;
-  margin-bottom: 2px;
   border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-state-business-primary);
 }
-.dss-super-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 28px;
-}
-.dss-super-description {
+.dss-super-status {
   margin: 0;
   color: var(--dsw-alias-label-secondary);
   font-size: 14px;
   line-height: 22px;
 }
-.dss-super-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
+.dss-super-error {
+  margin: 0;
+  color: var(--dsw-alias-state-error-primary, var(--dsw-alias-label-secondary));
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
 }
 .dss-super-button {
-  height: 36px;
-  padding: 0 18px;
-  border: none;
+  height: 32px;
+  padding: 0 14px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: var(--dsw-radius-md);
-  background: var(--dsw-alias-button-primary-fill);
-  color: var(--dsw-alias-label-on-color);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
 }
 @media (hover: hover) {
-  .dss-super-button:hover:not(:disabled) {
-    background: var(--dsw-alias-button-primary-hover);
+  .dss-super-button:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
   }
 }
 .dss-super-button:focus-visible {
   outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color);
   outline-offset: 2px;
-}
-.dss-super-button:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-.dss-super-error {
-  margin: 0;
-  color: var(--dsw-alias-state-error-primary, var(--dsw-alias-label-secondary));
-  font-size: 12px;
-  line-height: 18px;
-  overflow-wrap: anywhere;
 }
 `
 
@@ -200,21 +192,88 @@ window.__ModuleLoader__.load({
       return /agent[\s_-]?preset/i.test(text) && /(not[\s_-]?found|unknown|invalid|unrecogni[sz]ed)/i.test(text)
     }
 
-    /**
-     * Create a Session, falling back to the Host default preset when the
-     * named one is not recognised.
-     * @param {any} sessions - Session Controller service.
-     * @param {string | undefined} workspaceId - target Workspace, when known.
-     * @returns The new Session id.
-     */
-    async function createSession(sessions, workspaceId) {
-      const target = workspaceId === undefined ? {} : { workspaceId }
+    /** The Session list snapshot, or undefined while the controller is absent. */
+    function sessionList(ctx) {
       try {
-        return await sessions.create({ ...target, agentPreset: AGENT_PRESET })
-      } catch (reason) {
-        if (!unknownPreset(reason)) throw reason
-        return await sessions.create(target)
+        const sessions = ctx.get('sessions')
+        const list = sessions && sessions.list
+        return list && typeof list.getSnapshot === 'function' ? list.getSnapshot() : undefined
+      } catch (_reason) {
+        return undefined
       }
+    }
+
+    /** Session ids the user archived; archived rows are not resumable entries. */
+    function archivedSessions(ctx) {
+      try {
+        const workspaces = ctx.get('workspaces')
+        const list = workspaces && workspaces.list
+        const snapshot = list && typeof list.getSnapshot === 'function' ? list.getSnapshot() : undefined
+        const ids = snapshot && Array.isArray(snapshot.archivedSessionIds) ? snapshot.archivedSessionIds : []
+        return new Set(ids)
+      } catch (_reason) {
+        return new Set()
+      }
+    }
+
+    /** The remembered super session id, when storage is readable. */
+    function readPointer() {
+      try {
+        const value = window.localStorage.getItem(POINTER_KEY)
+        return typeof value === 'string' && value.length > 0 ? value : undefined
+      } catch (_reason) {
+        return undefined
+      }
+    }
+
+    /**
+     * Remember the super session id; storage failures cost only the shortcut,
+     * because the title marker and the list still identify the Session.
+     * @param {string} sessionId - the Session this row stands for.
+     */
+    function writePointer(sessionId) {
+      try {
+        window.localStorage.setItem(POINTER_KEY, sessionId)
+      } catch (_reason) {
+        // Private mode or a full quota: the title marker still finds it.
+      }
+    }
+
+    /**
+     * Whether a Session title marks the super session.
+     * @param {string | undefined} title - display title from the list.
+     * @returns True for a title written by this plugin.
+     */
+    function markedTitle(title) {
+      return typeof title === 'string' && TITLES.some((prefix) => title.startsWith(prefix))
+    }
+
+    /**
+     * Resolve the Session this row stands for without creating one.
+     *
+     * The remembered id wins when the list still carries it and the user has
+     * not archived it. Otherwise the newest listed Session carrying a super
+     * session title is adopted, so an earlier one keeps its history. While the
+     * list is still arriving its rows prove nothing, and the remembered id is
+     * used as it stands.
+     * @param {any} ctx - Client root context.
+     * @returns A Session id, or undefined when the super session must be created.
+     */
+    function knownSuperSession(ctx) {
+      const stored = readPointer()
+      const list = sessionList(ctx)
+      if (!list || list.phase !== 'ready' || !list.byId) return stored
+      const archived = archivedSessions(ctx)
+      if (stored !== undefined && list.byId[stored] !== undefined && !archived.has(stored)) return stored
+      const ids = Array.isArray(list.ids) ? list.ids : []
+      const adopted = ids
+        .map((id) => list.byId[id])
+        .filter((summary) => summary !== undefined && !archived.has(summary.id)
+          && markedTitle(summary.displayTitle))
+        .sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0))[0]
+      if (adopted === undefined) return undefined
+      writePointer(adopted.id)
+      return adopted.id
     }
 
     /** Parse a timestamp defensively for ordering. */
@@ -224,13 +283,9 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Find the Workspace to create in: the current Session's, then the most
-     * recently updated Session's, then the newest Workspace, else none (the
-     * Host default applies).
-     *
-     * The panel replaces the Conversation, so the Session that was open is no
-     * longer retained by the main view and the first rule usually misses; the
-     * recency fallbacks keep the button useful without asking the user.
+     * Find the Workspace for a first visit: the current Session's when one is
+     * still retained, then the most recently updated Session's, then the
+     * newest Workspace, else none (the Host default applies).
      * @param {any} ctx - Client root context.
      * @returns A Workspace id, or undefined.
      */
@@ -277,64 +332,79 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** Local wall-clock `YYYY-MM-DD HH:mm`, the suffix of the titled Session. */
-    function localTime() {
-      const now = new Date()
-      const pad = (value) => String(value).padStart(2, '0')
-      return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} `
-        + `${pad(now.getHours())}:${pad(now.getMinutes())}`
-    }
-
     /**
-     * Rename the new Session; a title is cosmetic and may fail silently.
+     * Rename the new Session; the title is also the durable marker that lets
+     * the row find this Session when the remembered id is gone, so it is the
+     * one creation step allowed to fail without losing the session.
      * @param {any} sessions - Session Controller service.
      * @param {string} sessionId - the Session to rename.
-     * @param {(key: string, params?: Record<string, unknown>) => string} t - bound translate.
+     * @param {string} title - the localized super session title.
      */
-    async function renameSession(sessions, sessionId, t) {
+    async function renameSession(sessions, sessionId, title) {
       try {
         const binding = typeof sessions.binding === 'function' ? sessions.binding(sessionId) : undefined
         const session = binding && binding.session
         const rename = session && session.rename
         if (typeof rename !== 'function') return
-        await rename.call(session, t('session.title', { time: localTime() }))
+        await rename.call(session, title)
       } catch (_reason) {
-        // Opening the Session already succeeded; the default title is fine.
+        // The Session is usable under its default title.
       }
     }
 
     /**
-     * Create, open, and title one Session on the personal preset.
-     * @param {any} ctx - Client root context.
+     * Create the super session on the personal preset, remember it, title it.
+     * @param {any} sessions - Session Controller service.
+     * @param {string | undefined} workspaceId - target Workspace, when known.
      * @param {(key: string, params?: Record<string, unknown>) => string} t - bound translate.
+     * @returns The new Session id.
      */
-    async function startSuperSession(ctx, t) {
-      const sessions = ctx.get('sessions')
-      if (!sessions || typeof sessions.create !== 'function') {
-        throw new Error(t('error.unavailable'))
-      }
-      const workspaceId = currentWorkspaceId(ctx)
+    async function createSuperSession(sessions, workspaceId, t) {
+      const target = workspaceId === undefined ? {} : { workspaceId }
       let sessionId
       try {
-        sessionId = await createSession(sessions, workspaceId)
+        sessionId = await sessions.create({ ...target, agentPreset: AGENT_PRESET })
       } catch (reason) {
-        throw new Error(t('error.create', { message: messageOf(reason) }))
-      }
-      // Navigation is owned by ui-workspace; the Session Controller itself has
-      // no `open` verb. `sessions.open` is used only if a future build adds it.
-      const navigation = ctx.get('uiWorkspace')
-      try {
-        if (navigation && typeof navigation.openSession === 'function') {
-          await navigation.openSession(sessionId)
-        } else if (typeof sessions.open === 'function') {
-          sessions.open(sessionId)
-        } else {
-          throw new Error(t('error.unavailable'))
+        if (!unknownPreset(reason)) throw new Error(t('error.create', { message: messageOf(reason) }))
+        try {
+          sessionId = await sessions.create(target)
+        } catch (fallbackReason) {
+          throw new Error(t('error.create', { message: messageOf(fallbackReason) }))
         }
+      }
+      writePointer(sessionId)
+      await renameSession(sessions, sessionId, t('session.title'))
+      return sessionId
+    }
+
+    /**
+     * Open the one super session, creating it on the first visit.
+     * @param {any} ctx - Client root context.
+     * @param {(key: string, params?: Record<string, unknown>) => string} t - bound translate.
+     * @param {() => boolean} stillHere - false once this page is gone, so a slow
+     *   creation never steals a navigation the user started in the meantime.
+     */
+    async function openSuperSession(ctx, t, stillHere) {
+      const sessions = ctx.get('sessions')
+      if (!sessions || typeof sessions.create !== 'function' || typeof sessions.binding !== 'function') {
+        throw new Error(t('error.unavailable'))
+      }
+      let sessionId = knownSuperSession(ctx)
+      if (sessionId === undefined) {
+        sessionId = await createSuperSession(sessions, currentWorkspaceId(ctx), t)
+        if (!stillHere()) return
+      }
+      // Navigation is owned by ui-workspace: `openSession` selects the Session
+      // and returns the main column to the Conversation in one step.
+      const navigation = ctx.get('uiWorkspace')
+      if (!navigation || typeof navigation.openSession !== 'function') {
+        throw new Error(t('error.unavailable'))
+      }
+      try {
+        navigation.openSession(sessionId)
       } catch (reason) {
         throw new Error(t('error.open', { message: messageOf(reason) }))
       }
-      await renameSession(sessions, sessionId, t)
     }
 
     return {
@@ -343,44 +413,46 @@ window.__ModuleLoader__.load({
         ctx.effect(() => ctx.locale.register(NS, DICTIONARIES), 'dsh-super-session: dictionaries')
         const t = ctx.locale.bind(NS)
 
-        /** Page shown in the main column for this panel id. */
+        /**
+         * The page behind the panel id. It resolves and opens the Session in a
+         * layout effect, so the usual path paints nothing at all; it stays on
+         * screen only when resolution is slow or failed.
+         */
         function SuperSessionPage() {
-          const [error, setError] = React.useState(null)
-          const [pending, setPending] = React.useState(false)
-          const alive = React.useRef(true)
-          const busy = React.useRef(false)
-          React.useEffect(() => () => { alive.current = false }, [])
-          const start = () => {
-            if (busy.current) return
-            busy.current = true
-            setPending(true)
-            setError(null)
-            void startSuperSession(ctx, t)
-              .catch((reason) => {
-                if (alive.current) setError(messageOf(reason))
-              })
-              .finally(() => {
-                busy.current = false
-                if (alive.current) setPending(false)
-              })
-          }
+          const [failure, setFailure] = React.useState(null)
+          const [slow, setSlow] = React.useState(false)
+          const [attempt, setAttempt] = React.useState(0)
+          React.useLayoutEffect(() => {
+            let alive = true
+            const timer = setTimeout(() => { if (alive) setSlow(true) }, SLOW_OPEN_MS)
+            void openSuperSession(ctx, t, () => alive)
+              .catch((reason) => { if (alive) setFailure(messageOf(reason)) })
+              .finally(() => clearTimeout(timer))
+            return () => {
+              alive = false
+              clearTimeout(timer)
+            }
+          }, [attempt])
+
+          if (failure === null && !slow) return null
           return h('div', { className: 'dss-super-page' }, [
             h('style', { key: 'styles' }, STYLES),
             h('section', { key: 'card', className: 'dss-super-card', 'aria-label': t('title') }, [
               h('span', { key: 'mark', className: 'dss-super-mark', 'aria-hidden': 'true' },
                 h(SuperSessionIcon, { size: 22 })),
-              h('h1', { key: 'title', className: 'dss-super-title' }, t('title')),
-              h('p', { key: 'description', className: 'dss-super-description' }, t('description')),
-              h('div', { key: 'actions', className: 'dss-super-actions' },
-                h('button', {
-                  type: 'button',
-                  className: 'dss-super-button',
-                  disabled: pending,
-                  onClick: start,
-                }, pending ? t('action.creating') : t('action.create'))),
-              error === null ? null : h('p', {
-                key: 'error', className: 'dss-super-error', role: 'alert',
-              }, error),
+              failure === null
+                ? h('p', { key: 'status', className: 'dss-super-status', role: 'status' }, t('status.opening'))
+                : h('p', { key: 'error', className: 'dss-super-error', role: 'alert' }, failure),
+              failure === null ? null : h('button', {
+                key: 'retry',
+                type: 'button',
+                className: 'dss-super-button',
+                onClick: () => {
+                  setSlow(false)
+                  setFailure(null)
+                  setAttempt((value) => value + 1)
+                },
+              }, t('action.retry')),
             ]),
           ])
         }
@@ -395,7 +467,8 @@ window.__ModuleLoader__.load({
           locale: NS,
         }, (props) => h(SuperSessionIcon, { size: props && props.size })))
 
-        // The same id keys the `main` slot, so selecting the row shows this page.
+        // The same id keys the `main` slot; selecting the row mounts this page,
+        // which immediately turns the main column back into the Conversation.
         ctx.slots.inject('main', () => ctx.slots.register({
           name: 'main',
           key: PANEL_ID,
