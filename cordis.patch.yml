@@ -103,22 +103,21 @@
           - id: tool-schedule
             name: '@deepseek-ai/dsh-tool-schedule'
 
-          # Skill loading. The registry is host-plane; this provider adds local
-          # roots (project, user) plus the built-in agent-preset skills, and
-          # `tool-skill` exposes the catalog and loader.
+          # Skill loading. The registry is host-plane; this provider adds the
+          # default roots plus the built-in agent-preset skills, and `tool-skill`
+          # exposes the catalog and loader.
           #
-          # `includeDefaultRoots: false` is deliberate. The lead keeps only the
-          # skills that explain how DSH itself works (`dsh-doc`, shipped in the
-          # agent-preset package); execution skills belong to worker sessions,
-          # which still scan every root. Side effect: the lead no longer sees
-          # `~/.agents/skills` or a repository's own `.dsh/skills` /
-          # `.agents/skills`. The Office skills still show up, because that
-          # provider is mounted on the profile plane and cannot be dropped per
-          # preset.
+          # The default roots stay on: project-level `.dsh/skills` (rank 100) and
+          # `.agents/skills` (200), user-level `<dshHome>/skills` (400) and
+          # `<agentsHome>/skills` (500), and a bundled root (600) when
+          # `$DSH_BUNDLED_SKILL_DIR` is set. Project roots are resolved from the
+          # session's working directory on every lookup, so each workspace sees
+          # its own project skills and a `cd` switches them. `customSkillDirs`
+          # only adds `dsh-doc`, the one skill shipped with the agent-preset
+          # package.
           - id: skill-filesystem
             name: '@deepseek-ai/dsh-skill-filesystem'
             config:
-              includeDefaultRoots: false
               customSkillDirs:
                 - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-agent-preset/package.json')), 'skills')
           - id: tool-skill

@@ -90,9 +90,9 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 | 计划模式 | plan mode + `exit_plan_mode` |
 | 结构化提问 | `ask_user_question` |
 | 文件交付 | `present` |
-| 技能 | `skill`（目录里只有 `dsh-doc`） |
+| 技能 | `skill`（项目级与用户级技能都默认加载） |
 
-**执行面的工具不在个人助理这里**：`read_image`、`job_output` / `job_list` / `job_kill`、`web_search` / `web_fetch`、Office 三件套都归**工作会话**预设。lead 不亲自看图、跑长命令、查网页、做文档——这些活派 worker 去干，自己只留判断、简报和验收。skill 目录同理：personal 关掉了默认发现根（`includeDefaultRoots: false`），只留 agent-preset 自带的 `dsh-doc`，执行类技能只有 worker 看得到；`office` / `office-docx` / `office-xlsx` / `office-pptx` 那四个来自 profile 级的 `dsh-skill-office`，按预设摘不掉，在 lead 这边是死的。
+**执行面的工具不在个人助理这里**：`read_image`、`job_output` / `job_list` / `job_kill`、`web_search` / `web_fetch`、Office 三件套都归**工作会话**预设。lead 不亲自看图、跑长命令、查网页、做文档——这些活派 worker 去干，自己只留判断、简报和验收。skill 目录不设限制：全局用户技能和项目级 `.dsh/skills` / `.agents/skills` 都默认加载，项目根按会话当时的 cwd 现算，换工作区就换一套技能；`office` / `office-docx` / `office-xlsx` / `office-pptx` 那四个来自 profile 级的 `dsh-skill-office`，两边都有。
 
 bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 就是你那一个常驻会话，点它直接进对话，没有中间页、也没有「新建」按钮。它有**自己的固定工作区** `<Host home>/super-agent`（Host home 即用户主目录）：第一次点会把这个目录注册成工作区，并在其中用 **个人助理** 预设建一个标题为 `超级会话` 的会话；以后每次都回到同一工作区里最新的那个未归档会话，把那个会话归档了，再点会在同一工作区另建一个。它不增加工具，只调用已有的 session / workspace 服务。
 
@@ -151,7 +151,7 @@ worker 会话是独立会话，用 **工作会话** 预设启动（`create_sessi
 | 工作会话里 `read_image` 不可用 | 当前模型是否声明 image 输入；profile 是否挂载附件服务 |
 | `web_search` / `web_fetch` 不可用 | host 的 `web` 服务与 Search/Fetch provider 是否启用（Settings → Web search） |
 | Office 工具没出现 | 是否先加载了 Office skill（`office` 等）；host 的 `office-kit` 是否可用；`office_render` 还需要图像模型路由 |
-| `skill` 列表为空或缺少技能 | `skill-filesystem` 是否加载；个人助理只扫 agent-preset 自带的 `dsh-doc`（`includeDefaultRoots: false`），用户技能要在**工作会话**里才看得到；worker 侧再确认项目 `.dsh/skills`、`.agents/skills` 或 `~/.dsh/skills` 下有合法 `SKILL.md` |
+| `skill` 列表为空或缺少技能 | `skill-filesystem` 是否加载；项目 `.dsh/skills`、`.agents/skills` 或用户 `~/.dsh/skills`、`~/.agents/skills` 下是否有合法 `SKILL.md`（项目根按会话 cwd 现算，先确认当前工作区） |
 | 定时任务创建失败 | host 的 `schedule` 服务是否挂载；时间规则是否在支持的 RRULE 子集内 |
 | `job_list` 一直为空 | 持久 shell 不注册 job；这是预期行为，后台长命令用 `&` + 日志文件 |
 
