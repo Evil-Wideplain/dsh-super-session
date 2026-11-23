@@ -162,6 +162,7 @@ async function main() {
   for (const [english, chinese] of [
     ['prompt/handbook.md', 'prompt/handbook.zh.md'],
     ['prompt/worker.md', 'prompt/worker.zh.md'],
+    ['prompt/manager.md', 'prompt/manager.zh.md'],
   ]) {
     const [a, b] = [headingCount(english), headingCount(chinese)]
     check(a === b, `${basename(english)} and ${basename(chinese)} heading parity`, `${a} vs ${b}`)
@@ -172,7 +173,7 @@ async function main() {
   }
 
   const blocks = presetBlocks()
-  check(blocks.length === 2, 'exactly two presets declared', blocks.map(block => block.id).join(', '))
+  check(blocks.length === 3, 'exactly three presets declared', blocks.map(block => block.id).join(', '))
   for (const block of blocks) {
     const pluginName = field(block.body, 'name')
     check(pluginName === '@deepseek-ai/dsh-agent-preset', `${block.id} uses the preset plugin`, pluginName)
@@ -189,6 +190,42 @@ async function main() {
     // The preset must not carry a handbook of its own: one path per preset.
     const paths = [field(block.body, 'handbookPath')]
     check(paths.length > 0, `${block.id} names one handbook`)
+  }
+
+  // The coordinator is the one preset that only dispatches: it must name its
+  // own handbook, keep the coordination surface, and carry none of the work or
+  // interaction tools, which belong to the worker and personal presets.
+  const manager = blocks.find(block => block.id === 'preset-manager')
+  check(Boolean(manager), 'preset-manager is declared')
+  if (manager) {
+    check(field(manager.body, 'id') === 'manager', 'preset-manager declares the manager id', field(manager.body, 'id'))
+    check(
+      field(manager.body, 'handbookPath') === './prompt/manager.md',
+      'preset-manager names the manager handbook',
+      field(manager.body, 'handbookPath'),
+    )
+    const required = [
+      'dsh-tool-goal',
+      'dsh-tool-todo',
+      'dsh-skill-filesystem',
+      'dsh-tool-skill',
+      'dsh-tool-bash-persistent',
+      'dsh-tool-pwsh-persistent',
+    ]
+    const missing = required.filter(name => !manager.body.includes(name))
+    check(missing.length === 0, 'preset-manager mounts the coordination surface', missing.join(', '))
+    const forbidden = [
+      'dsh-tool-web',
+      'dsh-tool-office',
+      'dsh-tool-jobs',
+      'dsh-tool-fs',
+      'dsh-tool-present',
+      'dsh-tool-ask-user',
+      'dsh-plan-mode',
+      'dsh-tool-schedule',
+    ]
+    const mounted = forbidden.filter(name => manager.body.includes(name))
+    check(mounted.length === 0, 'preset-manager mounts no work or interaction tools', mounted.join(', '))
   }
 
   // The sidebar panel only reaches the browser when the Loader row is named by

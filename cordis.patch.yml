@@ -303,6 +303,112 @@
           - id: tool-office
             name: '@deepseek-ai/dsh-tool-office'
 
+# Manager preset — one goal, one layer of worker sessions, and a report back to
+# the lead. It carries neither the user-facing surface nor the work tools: its
+# shell exists to check what a worker changed, and everything else is
+# dispatched.
+#
+# It mounts the coordination surface only: the shell (to verify), goals (to keep
+# one goal across rounds), todos, and skill loading. No plan mode, no
+# questions, no presentation, no schedules, no web, no image, no jobs, no
+# Office: those belong to the personal or worker preset. `send_session_message`
+# arrives from the profile's session-messaging plugin, not from this preset.
+
+- insert:
+    - id: preset-manager
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: manager
+        name: 组长（Coordinator）
+        description: 管一份目标：拆解、派 worker、看证据验收，向派它的 lead 汇报。
+        order: 22
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                You are a coordinator agent: a lead agent handed you one goal, you dispatch worker sessions to carry it out, and you report the result back to that lead. You do not talk to the end user and you do not do the work yourself. Reply in the language of the goal.
+
+          # Same handbook plugin as the other presets, pointed at the coordinator
+          # handbook.
+          - id: manager-handbook
+            name: '@local/dsh-personal-agent/context.js'
+            config:
+              handbookPath: ./prompt/manager.md
+
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+
+          # Same persistent shell as the personal preset: a PTY, a terminal, and
+          # the persistent bash/pwsh tool (5-minute timeout).
+          - id: persistent-shell
+            name: cordis:group
+            group: true
+            isolate:
+              terminals: true
+            config:
+              - id: pty
+                name: '@deepseek-ai/dsh-terminal'
+              - id: terminal-bash
+                name: '@deepseek-ai/dsh-terminal-bash'
+                disabled: !!js process.platform === 'win32'
+                config:
+                  timeoutMs: 300000
+              - id: persistent-bash
+                name: '@deepseek-ai/dsh-tool-bash-persistent'
+                disabled: !!js process.platform === 'win32'
+                config:
+                  timeoutMs: 300000
+                  description: |-
+                    Run commands in a bash shell
+                    * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
+                    * Network access depends on the task environment. Prefer configured mirrors/proxies when they are available.
+                    * State is persistent across command calls and discussions with the user.
+                    * To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.
+                    * Please avoid commands that may produce a very large amount of output.
+                    * Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.
+              - id: terminal-pwsh
+                name: '@deepseek-ai/dsh-terminal-bash'
+                disabled: !!js process.platform !== 'win32'
+                config:
+                  shellDialect: pwsh
+                  timeoutMs: 300000
+              - id: persistent-pwsh
+                name: '@deepseek-ai/dsh-tool-pwsh-persistent'
+                disabled: !!js process.platform !== 'win32'
+                config:
+                  timeoutMs: 300000
+                  description: |-
+                    Run commands in a PowerShell shell
+                    * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
+                    * Network access depends on the task environment. Prefer configured mirrors/proxies when they are available.
+                    * State is persistent across command calls and discussions with the user.
+                    * Use native Windows paths (C:\...) and $env:NAME variables; this is PowerShell, not bash.
+                    * Please avoid commands that may produce a very large amount of output.
+                    * Please run long lived commands in the background, e.g. 'Start-Job' or start a server with Start-Process.
+
+          # Skills: same registry row as the personal preset.
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+            config:
+              customSkillDirs:
+                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-agent-preset/package.json')), 'skills')
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+
+          # One goal across rounds, and a short plan for the pieces.
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+
 # Client-half entry: this row makes the Loader mount the package so it can
 # discover the `dsh.client` declaration. The sidebar panel ("Super Session")
 # and the page it opens live in `client.js`; the Host half (`index.js`) is

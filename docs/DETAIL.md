@@ -1,21 +1,24 @@
-# Personal Agent and Worker
+# Personal Agent, Worker and Coordinator
 
-Two DSH agent presets shipped by one bundle: a shell-first personal assistant, and a worker session for briefed delegation. Both keep a deliberately small tool surface.
+Three DSH agent presets shipped by one bundle: a shell-first personal assistant, a worker session for briefed delegation, and a coordinator that holds one goal and dispatches workers. All keep a deliberately small tool surface.
 
 ## What it adds
 
 - A **personal** preset (`personal`, "Personal Agent"): a personal-agent persona and an operating handbook, in English and Chinese. The handbook is a near-verbatim port of Meta Muse's system prompt (values, one-user loyalty, discretion, external parties, design of work, personalization and memory, context awareness, active work, writing style, tools, delegation, scheduled work, runtime files, security, safety), with facts swapped for DSH's tool surface, plus DSH-specific sections on skills, worker-session delivery, scheduled-task verification, file delivery, first run and continuity.
 - A **worker** preset (`worker`, "Worker"): the standard preset's coding-agent persona line plus a worker handbook, in English and Chinese. The handbook is a DSH-style operating prompt adapted to a persistent single-task worker: the brief is the objective, the session keeps going across rounds instead of asking permission between steps, work is explored before it is changed and verified before it is reported, and the result goes back to the lead with `send_session_message`. It deliberately does not repeat the personal handbook.
+- A **manager** preset (`manager`, "Coordinator"): a coordinator persona and a short handbook, in English and Chinese. It takes one goal from a lead agent, keeps it as a goal across rounds, splits it into briefs for worker sessions, accepts their evidence, and reports back. It creates worker sessions only — never a `personal` or another `manager` session — and it neither addresses the user nor does the work itself.
 - A sidebar panel row **Super Session** (above the workspace list): it is your one standing session, and selecting it opens that conversation directly with no intermediate page. It has its own fixed workspace, `<Host home>/super-agent`: the first visit registers that directory as a workspace and creates a session on the `personal` preset titled `Super Session`; later visits open the newest unarchived session of the same workspace. It adds no tools; it calls the existing session and workspace services.
 - Mounted tools for the personal preset: a persistent shell (`bash` on non-Windows, `pwsh` on Windows), `schedule_*`, `create_goal` / `get_goal` / `update_goal`, `todo_write`, plan mode + `exit_plan_mode`, `ask_user_question`, `present`, and `skill`. It mounts none of the tools that execute: no `read_image`, no `job_*`, no `web_search` / `web_fetch`, no Office tools. The personal preset dispatches that work to a worker session instead of doing it. Its skill discovery keeps the default roots, so the catalog carries the user's own skills, whatever the session's project ships in `.dsh/skills` or `.agents/skills` (resolved from the session's working directory on every lookup), `dsh-doc` from the agent-preset package, and the four Office skills from the profile-level provider.
 - Mounted tools for the worker preset: the same persistent shell and `read_image`, `job_output` / `job_list` / `job_kill`, `todo_write`, `create_goal` / `get_goal` / `update_goal` (a long brief stays one objective across rounds), `web_search` / `web_fetch`, the three Office tools, and `skill`. It omits schedules, plan mode, `ask_user_question` and `present`: the lead session owns those.
-- One memory system: the Agent profile's fixed `dsh-auto-memory` component (`memory_*`). Neither preset injects `SOUL.md` / `USER.md` / `MEMORY.md` runtime files; persona comes from `persona.prefix` and the handbook.
+- Mounted tools for the manager preset: the same persistent shell (used to check what a worker changed and to run the check it claims passed), `create_goal` / `get_goal` / `update_goal`, `todo_write`, and `skill`. It mounts no plan mode, `ask_user_question`, `present`, schedules, web tools, image recognition, job controls, or Office tools: it dispatches that work. `send_session_message` and `create_session_agent` come from the profile's `session-messaging` component.
+- One memory system: the Agent profile's fixed `dsh-auto-memory` component (`memory_*`). None of the presets injects `SOUL.md` / `USER.md` / `MEMORY.md` runtime files; persona comes from `persona.prefix` and the handbook.
 - No local `read` / `write` / `edit` / `glob` / `grep` (the shell is the file interface), and no `subagent` / `workflow` (delegation goes through the Agent profile's `session-messaging` component). `working_directory` is supplied by the host for every preset and is not mounted here.
 
 ## Choosing a preset
 
 - **Personal Agent**: the session the user talks to. It holds the conversation, the user's preferences, and every outward-facing action.
 - **Worker**: a session a lead creates with `create_session_agent` and `agent_preset: worker`, passing a self-contained brief. It does the bounded work, verifies the result, and messages the result back; it does not address the user and does not ask for confirmation.
+- **Coordinator**: a session a lead creates with `agent_preset: manager` for one goal that needs several workers or several rounds. It splits the goal, dispatches worker sessions, accepts their evidence, and reports to the lead. One coordinator per goal; it goes no further up, answers to the lead alone, and dispatches one layer down only.
 
 ## First run
 
@@ -32,4 +35,4 @@ Memory is managed by the Agent profile's fixed `dsh-auto-memory` component and i
 - The three Office tools (worker preset) appear only after an Office skill loads; `office_render` also needs an image-capable model route and an attachments service.
 - Memory, worker sessions, long-session watching and search come from fixed Agent-profile components: `dsh-auto-memory`, `session-messaging`, and `session-guardian` (including its session-query group). A profile without them exposes no such tools.
 - `read_image` (worker preset) needs an image-capable model route and an attachments service.
-- The permission mode and sandbox are host/profile settings. Neither preset weakens them.
+- The permission mode and sandbox are host/profile settings. None of the presets weakens them.

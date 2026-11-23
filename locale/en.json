@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "Personal Agent and Worker",
-    "description": "Two agent presets: a shell-first personal assistant with web, Office, goals and schedules, and a worker preset for briefed, verified delegation.",
+    "title": "Personal Agent, Worker and Coordinator",
+    "description": "Three agent presets: a shell-first personal assistant with schedules, goals and file delivery; a worker preset for briefed, verified delegation; and a coordinator that holds one goal and dispatches workers.",
     "detail": "docs/DETAIL.md"
   }
 }
