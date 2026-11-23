@@ -137,6 +137,7 @@ function clientRowName() {
 async function main() {
   const manifest = readJson('package.json')
   const plugin = await import(pathToFileURL(resolve(ROOT, 'context.js')).href)
+  const guard = await import(pathToFileURL(resolve(ROOT, 'guard.js')).href)
 
   check(plugin.name === 'personal-handbook', 'plugin exports a name', String(plugin.name))
   check(
@@ -226,6 +227,87 @@ async function main() {
     ]
     const mounted = forbidden.filter(name => manager.body.includes(name))
     check(mounted.length === 0, 'preset-manager mounts no work or interaction tools', mounted.join(', '))
+    check(
+      manager.body.includes("name: '@local/dsh-personal-agent/guard.js'"),
+      'preset-manager mounts the dispatch guard',
+    )
+  }
+
+  // The guard row must be scoped to the coordinator alone: the personal preset
+  // keeps the ordinary creation tool and the worker preset stays untouched.
+  const guardBlocks = blocks.filter(block => block.body.includes("'@local/dsh-personal-agent/guard.js'"))
+  check(
+    guardBlocks.length === 1 && guardBlocks[0].id === 'preset-manager',
+    'dispatch guard is mounted only by preset-manager',
+    guardBlocks.map(block => block.id).join(', '),
+  )
+
+  // The guard hides the global creation tool with a scoped, never-admitted
+  // shadow and replaces it with a dispatch tool whose Agent preset is fixed.
+  // Exercised against a fake tool registry so a missing registration or a
+  // passthrough `agent_preset` fails the bundle check instead of the manager at
+  // runtime.
+  check(guard.name === 'dispatch-guard', 'guard exports a plugin name', String(guard.name))
+  check(
+    Array.isArray(guard.inject) && guard.inject.includes('tools') && guard.inject.includes('sessionMessaging'),
+    'guard injects tools and sessionMessaging',
+    String(guard.inject),
+  )
+  check(guard.DENIED_TOOL === 'create_session_agent', 'guard hides create_session_agent', String(guard.DENIED_TOOL))
+  check(guard.DISPATCH_TOOL === 'dispatch_worker', 'guard exposes dispatch_worker', String(guard.DISPATCH_TOOL))
+  check(guard.WORKER_PRESET === 'worker', 'guard fixes the worker preset', String(guard.WORKER_PRESET))
+  const guardCalls = []
+  const guardRegistrations = []
+  const fakeCreation = {
+    async create(caller, input) {
+      guardCalls.push({ caller, input })
+      return {
+        status: 'accepted', sessionId: 'session-w1', shortId: 'w1', cwd: input.cwd ?? '/work',
+        workspaceId: 'ws-1', messageId: 'm1', detail: 'ok', title: input.title,
+      }
+    },
+  }
+  let guardError
+  try {
+    guard.apply({
+      get: name => name === 'sessionMessaging' ? { creation: fakeCreation } : undefined,
+      tools: { register(definition, options) { guardRegistrations.push({ definition, options }); return () => {} } },
+    })
+  } catch (error) {
+    guardError = error
+  }
+  check(guardError === undefined, 'guard applies to a tools/sessionMessaging context', String(guardError))
+  const hidden = guardRegistrations.find(entry => entry.definition.name === 'create_session_agent')
+  check(Boolean(hidden), 'guard registers a create_session_agent shadow')
+  check(hidden?.options?.when?.() === false, 'guard shadow is never admitted')
+  const dispatch = guardRegistrations.find(entry => entry.definition.name === 'dispatch_worker')?.definition
+  check(Boolean(dispatch), 'guard registers dispatch_worker')
+  if (dispatch !== undefined) {
+    const agent = { id: 'session-m', session: { header: { cwd: '/work' } } }
+    const signal = new AbortController().signal
+    const output = await dispatch.execute({ prompt: 'brief', title: 'piece' }, { agent, signal })
+    check(output.status === 'accepted' && output.session_id === 'session-w1', 'dispatch passes the creation result through', String(output.status))
+    check(
+      guardCalls.length === 1
+        && guardCalls[0].input.agentPreset === 'worker'
+        && guardCalls[0].input.agent_preset === undefined,
+      'dispatch forces agentPreset worker and exposes no preset argument',
+      JSON.stringify(guardCalls[0]?.input),
+    )
+    check(
+      guardCalls[0]?.caller?.identity?.id === 'session-m' && guardCalls[0]?.caller?.identity?.cwd === '/work',
+      'dispatch forwards the caller identity',
+    )
+    let rejectedPreset = false
+    try {
+      await dispatch.execute({ prompt: 'brief', agent_preset: 'manager' }, { agent, signal })
+    } catch (_error) {
+      rejectedPreset = true
+    }
+    check(rejectedPreset, 'dispatch rejects a caller-supplied agent_preset')
+  }
+  for (const file of ['prompt/manager.md', 'prompt/manager.zh.md']) {
+    check(readFileSync(resolve(ROOT, file), 'utf8').includes('dispatch_worker'), `${file} names dispatch_worker`)
   }
 
   // The sidebar panel only reaches the browser when the Loader row is named by
@@ -238,6 +320,9 @@ async function main() {
   check(manifest.dsh?.client?.platform === 'web', 'manifest declares a web client half', String(manifest.dsh?.client?.platform))
   const clientExport = manifest.exports?.['./client']
   check(typeof clientExport === 'string' && existsSync(resolve(ROOT, clientExport)), 'manifest ./client export exists', clientExport ?? '(missing)')
+  const guardExport = manifest.exports?.['./guard.js']
+  check(typeof guardExport === 'string' && existsSync(resolve(ROOT, guardExport)), 'manifest ./guard.js export exists', guardExport ?? '(missing)')
+  check((manifest.files ?? []).includes('guard.js'), 'manifest ships guard.js')
 
   if (process.argv.includes('--handbook')) {
     for (const block of blocks) {

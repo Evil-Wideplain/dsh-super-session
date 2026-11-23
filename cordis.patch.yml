@@ -336,6 +336,13 @@
             config:
               handbookPath: ./prompt/manager.md
 
+          # Runtime guard: the coordinator may start worker sessions only. This
+          # row hides the global create_session_agent inside this preset's tool
+          # scope and exposes dispatch_worker, whose Agent preset is fixed to
+          # worker; session-messaging still supplies the creation semantics.
+          - id: dispatch-guard
+            name: '@local/dsh-personal-agent/guard.js'
+
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
             config:

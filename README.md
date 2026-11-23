@@ -16,6 +16,7 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
   context.js                   # 预设插件：按 handbookPath 注入手册
   client.js                    # 浏览器端插件：侧边栏「超级会话」入口，直接进它固定工作区里的那个会话
   index.js                     # Host 半边：开机建好并注册 <Documents>/deepseek-harness/super-workspace，让 Loader 发现 dsh.client
+  guard.js                     # Host 插件：组长作用域隐藏 create_session_agent，提供固定 agent_preset: worker 的 dispatch_worker
   prompt/
     handbook.md                # 个人助理手册（英文，默认）
     handbook.zh.md             # 个人助理手册（中文）
@@ -108,7 +109,7 @@ bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 就�
 
 **工作会话**预设挂的是**执行面**，不是个人助理那张表的子集：持久 shell、`read_image`、`job_*`、`todo_write`、`create_goal` / `get_goal` / `update_goal`（一轮做不完的简报靠它跨轮次专注同一个目标）、`web_search` / `web_fetch`、Office 三件套、`skill`（扫描全部默认根，`~/.agents/skills` 与仓库自带技能都看得到）。它不挂 `schedule_*`、plan mode、`ask_user_question` 与 `present`——那些留在个人助理，worker 只负责把简报干完并回报。三个预设都不重复挂 profile 的全局工具。
 
-**组长**预设只挂协调面：持久 shell（只用来核对 worker 改了什么、跑它说通过的检查）、`create_goal` / `get_goal` / `update_goal`、`todo_write`、`skill`（默认根，与另外两个预设一致）。它不挂 plan mode、`ask_user_question`、`present`、定时任务、`web_*`、`read_image`、`job_*`、Office；`send_session_message` / `create_session_agent` 来自 profile 的 `session-messaging`，不在预设里。
+**组长**预设只挂协调面：持久 shell（只用来核对 worker 改了什么、跑它说通过的检查）、`create_goal` / `get_goal` / `update_goal`、`todo_write`、`skill`（默认根，与另外两个预设一致）。它不挂 plan mode、`ask_user_question`、`present`、定时任务、`web_*`、`read_image`、`job_*`、Office；`send_session_message` 来自 profile 的 `session-messaging`。派 worker 用本 bundle 的 `guard.js` 在组长作用域注册的 `dispatch_worker`：它的 Agent 预设固定为 `worker`；profile 的全局 `create_session_agent` 在组长作用域被隐藏，不能用来创建 `personal` 或第二个 `manager`。这两步都是运行时拦截，不是手册约定。
 
 Agent profile 里固化了以下组件，它们提供**全局工具**；不由本预设挂载：
 
@@ -119,11 +120,13 @@ Agent profile 里固化了以下组件，它们提供**全局工具**；不由�
 | `session-guardian`（session-query 组） | `session_search`、`session_event_search`、`session_trace`、`session_event_trace`、`session_event_read` |
 | `dsh-auto-memory` | `memory_write`、`memory_read`、`memory_list`、`memory_search`、`memory_delete`、`memory_delete_all`、`memory_prune` |
 
+> 唯一的例外是组长：`guard.js` 在 `manager` 作用域隐藏上面这张表里的 `create_session_agent`，换成固定 `agent_preset: worker` 的 `dispatch_worker`；profile 里的原工具本身不改，personal / worker 仍照常使用。
+
 三个预设都**不挂载**：`read` / `write` / `edit` / `glob` / `grep` / `apply_patch`、`subagent` / `subagent_fork` / `workflow`。文件读写通过 shell；委派通过 Agent profile 的 `session-messaging` 组件。
 
 worker 会话是独立会话，用 **工作会话** 预设启动（`create_session_agent` 的 `agent_preset: worker`），不继承你的上下文、也不共享你的记忆。只传任务真正需要的上下文；结果让它用 `send_session_message` 发回你的会话 id。
 
-组长会话也走 `create_session_agent`，`agent_preset: manager`：给它一份目标、约束和你的会话 id，它自己拆解、派 worker、验收证据，再把结果报回你。一个目标只派一个组长；它不找用户，也只往下派一层 worker。
+组长会话也走 `create_session_agent`，`agent_preset: manager`：给它一份目标、约束和你的会话 id，它自己拆解、派 worker、验收证据，再把结果报回你。一个目标只派一个组长；它不找用户，也只往下派一层 worker——这一步由 `guard.js` 在运行时强制：组长的工具面没有 `create_session_agent`，只有固定 `agent_preset: worker` 的 `dispatch_worker`。
 
 ## 自定义
 

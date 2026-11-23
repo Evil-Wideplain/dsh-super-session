@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "main": "index.js",
-  "description": "Two agent presets for DeepSeek Harness: a shell-first personal assistant (persistent shell, web, Office, goals, schedules) and a worker preset for briefed, verified delegation; memory comes from the profile's memory plugin.",
+  "description": "Three agent presets for DeepSeek Harness: a shell-first personal assistant, a worker preset for briefed, verified delegation, and a coordinator that dispatches workers for one goal; memory comes from the profile memory plugin.",
   "license": "MIT",
   "exports": {
     ".": "./index.js",
@@ -12,7 +12,8 @@
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json",
-    "./icon": "./icon.svg"
+    "./icon": "./icon.svg",
+    "./guard.js": "./guard.js"
   },
   "files": [
     "index.js",
@@ -25,7 +26,8 @@
     "docs/DETAIL.md",
     "docs/DETAIL.zh.md",
     "icon.svg",
-    "README.md"
+    "README.md",
+    "guard.js"
   ],
   "dsh": {
     "bundle": {
