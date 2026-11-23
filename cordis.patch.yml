@@ -4,17 +4,19 @@
 # The personal preset mounts:
 #
 # - a persistent shell (bash on non-Windows, PowerShell on Windows);
-# - `read_image` for visual inspection (tool-fs with every other file tool off);
-# - background jobs, scheduled tasks, goals, todos, plan mode, structured
-#   questions, web search/fetch, file delivery, Office documents, and skill
-#   loading;
+# - scheduled tasks, goals, todos, plan mode, structured questions, file
+#   delivery, and skill loading;
 # - the preset's own prompt rows (persona, handbook, AGENTS.md chain, clock).
 #
-# It deliberately does NOT mount `read`/`write`/`edit`/`glob`/`grep` (the shell
-# is the file interface) or `subagent`/`workflow` (worker sessions come from the
-# profile's session-messaging plugin). `working_directory` is supplied by the
-# Web host plane for every preset, so mounting it again would duplicate the
-# tool; do not add it here.
+# It deliberately does NOT mount the tools that execute: no `read_image`, no
+# background-job controls, no web search/fetch, no Office tools. Reading images,
+# running long commands, looking things up on the web and producing documents
+# belong to worker sessions; the lead dispatches and accepts. It also does not
+# mount `read`/`write`/`edit`/`glob`/`grep` (the shell is the file interface) or
+# `subagent`/`workflow` (worker sessions come from the profile's
+# session-messaging plugin). `working_directory` is supplied by the Web host
+# plane for every preset, so mounting it again would duplicate the tool; do not
+# add it here.
 #
 # Worker-agent, long-session, session-search and memory tools are supplied by
 # plugins installed in the profile (session-messaging, session-guardian,
@@ -26,7 +28,7 @@
       config:
         id: personal
         name: 个人助理（Personal Agent）
-        description: 单 Agent 个人助理：持久 shell、图片识别、Web/Office/日程/目标/计划工具；会话与记忆由 profile 提供。
+        description: 单 Agent 个人助理：持久 shell、定时任务、目标、清单、计划模式、提问与文件交付；执行类工作派给 worker 会话，会话与记忆由 profile 提供。
         order: 20
         plugins:
           - id: persona
@@ -48,18 +50,6 @@
 
           - id: time-context
             name: '@deepseek-ai/dsh-time-context'
-
-          # Image recognition only: read is off, write/edit off, applyPatch off.
-          # `read_image` registers only when the attachments service and an
-          # image-capable model route are available.
-          - id: image
-            name: '@deepseek-ai/dsh-tool-fs'
-            config:
-              read: false
-              readImage: true
-              write: false
-              edit: false
-              applyPatch: false
 
           # Persistent shell, copied from the built-in `minimal` preset: a PTY,
           # a terminal, and the persistent bash/pwsh tool (5-minute timeout).
@@ -109,11 +99,6 @@
                     * Please avoid commands that may produce a very large amount of output.
                     * Please run long lived commands in the background, e.g. 'Start-Job' or start a server with Start-Process.
 
-          # Background jobs: `run_in_background` producers come from the shell and
-          # later tool rows; these are the model-facing controls.
-          - id: tool-jobs
-            name: '@deepseek-ai/dsh-tool-jobs'
-
           # Scheduled tasks; the `schedule` service is host-plane.
           - id: tool-schedule
             name: '@deepseek-ai/dsh-tool-schedule'
@@ -121,9 +106,19 @@
           # Skill loading. The registry is host-plane; this provider adds local
           # roots (project, user) plus the built-in agent-preset skills, and
           # `tool-skill` exposes the catalog and loader.
+          #
+          # `includeDefaultRoots: false` is deliberate. The lead keeps only the
+          # skills that explain how DSH itself works (`dsh-doc`, shipped in the
+          # agent-preset package); execution skills belong to worker sessions,
+          # which still scan every root. Side effect: the lead no longer sees
+          # `~/.agents/skills` or a repository's own `.dsh/skills` /
+          # `.agents/skills`. The Office skills still show up, because that
+          # provider is mounted on the profile plane and cannot be dropped per
+          # preset.
           - id: skill-filesystem
             name: '@deepseek-ai/dsh-skill-filesystem'
             config:
+              includeDefaultRoots: false
               customSkillDirs:
                 - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-agent-preset/package.json')), 'skills')
           - id: tool-skill
@@ -166,20 +161,9 @@
             config:
               allowParallelInProgress: true
 
-          # Web search/fetch and file delivery.
-          - id: tool-web
-            name: '@deepseek-ai/dsh-tool-web'
-            config:
-              fetch: true
-              searchTimeoutMs: 60000
+          # File delivery.
           - id: present
             name: '@deepseek-ai/dsh-tool-present'
-
-          # Office viewing/conversion/recalculation. The three tools activate
-          # after an Office skill (office, office-docx, office-xlsx,
-          # office-pptx) loads; the skill provider comes from the host plane.
-          - id: tool-office
-            name: '@deepseek-ai/dsh-tool-office'
 
 # Worker preset — the environment of a bounded task, without the interactive
 # surface. A lead session hands this preset a self-contained brief and expects

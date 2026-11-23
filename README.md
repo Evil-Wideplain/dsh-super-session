@@ -84,17 +84,15 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 | 能力 | 工具 |
 | --- | --- |
 | 持久 shell | `bash`（非 Windows）/ `pwsh`（Windows） |
-| 图片识别 | `read_image`（PNG/JPEG/WebP/GIF） |
-| 后台任务控制 | `job_output` / `job_list` / `job_kill` |
 | 定时任务 | `schedule_create` / `schedule_list` / `schedule_view` / `schedule_edit` |
 | 目标 | `create_goal` / `get_goal` / `update_goal` |
 | 进度清单 | `todo_write` |
 | 计划模式 | plan mode + `exit_plan_mode` |
 | 结构化提问 | `ask_user_question` |
-| 网页 | `web_search` / `web_fetch` |
 | 文件交付 | `present` |
-| Office | `office_render` / `office_convert` / `office_recalculate` |
-| 技能 | `skill` |
+| 技能 | `skill`（目录里只有 `dsh-doc`） |
+
+**执行面的工具不在个人助理这里**：`read_image`、`job_output` / `job_list` / `job_kill`、`web_search` / `web_fetch`、Office 三件套都归**工作会话**预设。lead 不亲自看图、跑长命令、查网页、做文档——这些活派 worker 去干，自己只留判断、简报和验收。skill 目录同理：personal 关掉了默认发现根（`includeDefaultRoots: false`），只留 agent-preset 自带的 `dsh-doc`，执行类技能只有 worker 看得到；`office` / `office-docx` / `office-xlsx` / `office-pptx` 那四个来自 profile 级的 `dsh-skill-office`，按预设摘不掉，在 lead 这边是死的。
 
 bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 就是你那一个常驻会话，点它直接进对话，没有中间页、也没有「新建」按钮。它有**自己的固定工作区** `<Host home>/super-agent`（Host home 即用户主目录）：第一次点会把这个目录注册成工作区，并在其中用 **个人助理** 预设建一个标题为 `超级会话` 的会话；以后每次都回到同一工作区里最新的那个未归档会话，把那个会话归档了，再点会在同一工作区另建一个。它不增加工具，只调用已有的 session / workspace 服务。
 
@@ -102,11 +100,11 @@ bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 就�
 
 `working_directory` 由 Web 的 host 层提供给所有预设，**不需要也不应该**在预设里再挂一次；重复挂载会注册同名工具。
 
-`job_*` 目前没有 producer：持久 shell 用 `&` 跑后台命令，不会注册 job。后台长命令请把输出重定向到日志文件，之后再查。要让它真正可用，需要再加一个 job-aware 的 shell/terminal 工具。
+工作会话侧的 `job_*` 目前没有 producer：持久 shell 用 `&` 跑后台命令，不会注册 job。后台长命令请把输出重定向到日志文件，之后再查。要让它真正可用，需要再加一个 job-aware 的 shell/terminal 工具。
 
-Office 的三个工具要**先加载 Office skill**（`office`、`office-docx`、`office-xlsx`、`office-pptx`）才会出现；渲染还需要支持图像输入的模型路由和附件服务。
+工作会话侧的 Office 三个工具要**先加载 Office skill**（`office`、`office-docx`、`office-xlsx`、`office-pptx`）才会出现；渲染还需要支持图像输入的模型路由和附件服务。个人助理不挂这三个工具，文档的读取、转换、渲染一律派 worker。
 
-**工作会话**预设挂载的工具是上面这张表的子集：持久 shell、`read_image`、`job_*`、`todo_write`、`create_goal` / `get_goal` / `update_goal`（一轮做不完的简报靠它跨轮次专注同一个目标）、`web_search` / `web_fetch`、Office 三件套、`skill`。它不挂 `schedule_*`、plan mode、`ask_user_question` 与 `present`——那些留在主会话，worker 只负责把简报干完并回报。两个预设都不重复挂 profile 的全局工具。
+**工作会话**预设挂的是**执行面**，不是个人助理那张表的子集：持久 shell、`read_image`、`job_*`、`todo_write`、`create_goal` / `get_goal` / `update_goal`（一轮做不完的简报靠它跨轮次专注同一个目标）、`web_search` / `web_fetch`、Office 三件套、`skill`（扫描全部默认根，`~/.agents/skills` 与仓库自带技能都看得到）。它不挂 `schedule_*`、plan mode、`ask_user_question` 与 `present`——那些留在个人助理，worker 只负责把简报干完并回报。两个预设都不重复挂 profile 的全局工具。
 
 Agent profile 里固化了以下组件，它们提供**全局工具**；不由本预设挂载：
 
@@ -149,10 +147,11 @@ worker 会话是独立会话，用 **工作会话** 预设启动（`create_sessi
 | `create_session_agent` 报「DSH 拒绝创建会话」且提到 preset | 目标预设 id 是否存在（`worker`）；是否已重载 DSH；可临时省掉 `agent_preset` 用默认预设派发 |
 | 记忆搜不到或写不进 | Agent profile 的 `dsh-auto-memory` 是否启用；写入前先 `memory_search`，避免重复 |
 | 全局工具没出现 | Agent profile 的 `bundles` 是否包含 `dsh-auto-memory`、`session-messaging`、`session-guardian`；重启后再看 |
-| `read_image` 不可用 | 当前模型是否声明 image 输入；profile 是否挂载附件服务 |
+| 个人助理里没有 `read_image` / `web_*` / `job_*` / Office 工具 | 预期行为：这些工具只挂在**工作会话**预设，派个 worker 去做 |
+| 工作会话里 `read_image` 不可用 | 当前模型是否声明 image 输入；profile 是否挂载附件服务 |
 | `web_search` / `web_fetch` 不可用 | host 的 `web` 服务与 Search/Fetch provider 是否启用（Settings → Web search） |
 | Office 工具没出现 | 是否先加载了 Office skill（`office` 等）；host 的 `office-kit` 是否可用；`office_render` 还需要图像模型路由 |
-| `skill` 列表为空或缺少技能 | `skill-filesystem` 是否加载；项目 `.dsh/skills`、`.agents/skills` 或用户 `~/.dsh/skills` 下是否有合法 `SKILL.md` |
+| `skill` 列表为空或缺少技能 | `skill-filesystem` 是否加载；个人助理只扫 agent-preset 自带的 `dsh-doc`（`includeDefaultRoots: false`），用户技能要在**工作会话**里才看得到；worker 侧再确认项目 `.dsh/skills`、`.agents/skills` 或 `~/.dsh/skills` 下有合法 `SKILL.md` |
 | 定时任务创建失败 | host 的 `schedule` 服务是否挂载；时间规则是否在支持的 RRULE 子集内 |
 | `job_list` 一直为空 | 持久 shell 不注册 job；这是预期行为，后台长命令用 `&` + 日志文件 |
 
