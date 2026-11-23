@@ -319,3 +319,11 @@
           # Office skill loads. No `present`: the lead delivers files.
           - id: tool-office
             name: '@deepseek-ai/dsh-tool-office'
+
+# Client-half entry: this row makes the Loader mount the package so it can
+# discover the `dsh.client` declaration. The sidebar panel ("Super Session")
+# and the page it opens live in `client.js`; the Host half is intentionally
+# empty. Reload DSH after changing either half.
+- insert:
+    - id: super-session-entry
+      name: '@local/dsh-personal-agent/super-session'

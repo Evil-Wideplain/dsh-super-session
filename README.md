@@ -14,6 +14,8 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
   package.json                 # bundle 清单：dsh.bundle.patch
   cordis.patch.yml             # 两个预设的声明 + 各自的工具清单
   context.js                   # 预设插件：按 handbookPath 注入手册
+  client.js                    # 浏览器端插件：侧边栏「超级会话」面板与面板页
+  super-session.js             # Host 半边空插件：让 Loader 发现 dsh.client
   prompt/
     handbook.md                # 个人助理手册（英文，默认）
     handbook.zh.md             # 个人助理手册（中文）
@@ -93,6 +95,8 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 | 文件交付 | `present` |
 | Office | `office_render` / `office_convert` / `office_recalculate` |
 | 技能 | `skill` |
+
+bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 会在主栏打开一页，按「新建超级会话」用 **个人助理** 预设新开一个会话。它不增加工具，只调用已有的 session / workspace 服务。
 
 `working_directory` 由 Web 的 host 层提供给所有预设，**不需要也不应该**在预设里再挂一次；重复挂载会注册同名工具。
 

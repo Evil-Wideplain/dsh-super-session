@@ -6,6 +6,7 @@
 
 - **个人助理**预设（`personal`）：个人助理人设 + 操作手册（英文、中文各一份）。手册近乎逐段照抄 Meta Muse 的 system prompt（价值观、只服务一个用户、谨慎披露、对外联系人、工作方式、个性化与记忆、上下文感知、在手任务、写作风格、工具、委派、定时工作、运行时文件、安全），只把事实换成 DSH 的工具面，另加 DSH 专有的 skill、worker 会话投递、定时任务校验、文件交付、首次使用与连续性几节。
 - **工作会话**预设（`worker`）：沿用标准预设的 coding agent 人设行，加一份 worker 手册（英文、中文各一份）。手册是一份 DSH 风格的运行提示词，为「持久、专注做一件事」的 worker 改造过：简报就是目标，跨轮次推进而不是每步问许可，先探索再改、先核验再报告，结果用 `send_session_message` 发回主会话。它刻意不复述个人助理手册。
+- 侧边栏面板行 **超级会话**（在工作区列表上方）：点开在主栏显示一页，按钮用 **个人助理** 预设新建会话、跳过去，并把标题写成 `超级会话 · 时间`。它不增加工具，只调用已有的 session / workspace 服务。
 - 个人助理挂载的工具：持久 shell（非 Windows 用 `bash`，Windows 用 `pwsh`）、`read_image`、`job_output` / `job_list` / `job_kill`、`schedule_*`、`create_goal` / `get_goal` / `update_goal`、`todo_write`、plan mode + `exit_plan_mode`、`ask_user_question`、`web_search` / `web_fetch`、`present`、Office 三件套、`skill`。
 - 工作会话挂载的工具：同样的持久 shell 与 `read_image`、`job_output` / `job_list` / `job_kill`、`todo_write`、`create_goal` / `get_goal` / `update_goal`（长简报靠它跨轮次保持同一个目标）、`web_search` / `web_fetch`、Office 三件套、`skill`。它不挂定时任务、plan mode、`ask_user_question` 与 `present`：那些归主会话。
 - 记忆只有一套：Agent profile 固定的 `dsh-auto-memory` 组件（`memory_*`）。两个预设都不注入 `SOUL.md` / `USER.md` / `MEMORY.md` 等运行时文件；人格由 `persona.prefix` 与手册承载。

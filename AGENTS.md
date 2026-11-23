@@ -17,6 +17,8 @@
 |------|------|
 | `cordis.patch.yml` | 两个预设的声明（`preset-personal`、`preset-worker`）：id、显示名、描述、`persona.prefix`、插件行与工具清单 |
 | `context.js` | 预设插件：按该行的 `handbookPath` 读一份手册，注册 `personal:handbook` prompt 段；只用 `node:` 内置依赖 |
+| `client.js` | Client（浏览器端）插件：侧边栏「超级会话」面板行 + 主栏面板页；只 `require('react')`，不编译 |
+| `super-session.js` | Host 半边的空 `apply()`：只为让 Loader 挂载包、发现 `dsh.client` 声明 |
 | `prompt/handbook.md` | 个人助理手册（英文；个人预设未设 `handbookPath` 时的默认） |
 | `prompt/handbook.zh.md` | 个人助理手册（中文），章节与英文一一对应 |
 | `prompt/worker.md` | 工作会话手册（英文），工作预设默认读它 |
@@ -36,6 +38,7 @@
 | 派发到哪个预设、预设 id、显示名 | `cordis.patch.yml` 的 `preset-worker` 行 + 手册 Worker Sessions 段 | 不要在代码里硬编码另一份预设清单 |
 | 工具面：挂不挂哪个工具、超时、配置 | `cordis.patch.yml` 的 `plugins`，并同步 README 的「工具集」表与 `docs/DETAIL.md` 的 Mounted tools 段 | 不要重复挂 host/profile 已提供的工具；只改 YAML 不同步文档；手册写能力与机制、不列工具清单（机制必须点名时，如 worker 投递、定时校验、文件交付，可写工具名） |
 | 市场文案与详情页 | `locale/*.json` + 对应 `docs/DETAIL*.md`（README 的工具表同样要同步） | 不要写在代码里会漂移的数字 |
+| 界面入口：侧边栏面板行、面板页、启动按钮 | `client.js` | 不要在 `super-session.js` 或 `context.js` 里写界面逻辑 |
 | 改仓库的 Agent 该知道的事 | 本文件 | 不要塞进 `README.md`（受众是使用者） |
 
 ## 硬性规则
@@ -47,6 +50,7 @@
 - **工具面克制**：不挂 `read`/`write`/`edit`/`glob`/`grep`（shell 是文件接口），不挂 `subagent`/`workflow`（worker 会话走 `session-messaging`）。
 - **两个预设各自成树**：`worker` 只挂有界任务需要的工具，交互面（定时任务、plan mode、结构化提问、`present`）留在 `personal`；目标（`create_goal` / `tool-goal`）两边都有，worker 用它在多轮次里守住同一个任务。两个预设都不重复挂 profile 的全局组件。
 - **手册长度 = 每个会话的常驻开销**：加一节前先问「是不是每次都要」，不是就放 skill 或 `docs/`。
+- **Client 插件只碰浏览器半边**：`client.js` 随包加载；改它要**重载 DSH**，且只能 `require('react')`，不能 `require` 任何 `@deepseek-ai/dsh-client-*` 包（slot 与主题 token 由宿主注入）。
 
 ## 提交前验证清单
 

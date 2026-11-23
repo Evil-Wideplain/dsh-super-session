@@ -8,12 +8,16 @@
   "license": "MIT",
   "exports": {
     ".": "./context.js",
+    "./super-session": "./super-session.js",
+    "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json",
     "./icon": "./icon.svg"
   },
   "files": [
     "context.js",
+    "client.js",
+    "super-session.js",
     "scripts",
     "cordis.patch.yml",
     "prompt",
@@ -26,6 +30,14 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
     }
   }
 }
