@@ -1,15 +1,15 @@
 /**
  * Browser half of the bundle: the sidebar panel row named "Super Session".
  *
- * There is exactly one super session. Selecting the row puts the user straight
- * into that conversation instead of offering a launcher: the page registered
- * for the panel id only resolves which Session the super session is — the one
- * a previous visit stored, an existing Session that already carries the title,
- * or a freshly created one on the `personal` preset — and then hands the
- * navigation to ui-workspace, which returns the main column to the
- * Conversation. Nothing is painted on the successful path; a status line
- * appears only when resolution is slow, and failures stay on this page with a
- * retry action.
+ * There is exactly one super session, and its identity is the Workspace it
+ * lives in: the fixed directory `<Host home>/super-agent`. The first visit
+ * registers that directory as a Workspace and creates one Session on the
+ * `personal` preset; every later visit reopens the newest unarchived Session
+ * of the same Workspace. The page registered for the panel id only resolves
+ * that Session and hands the navigation to ui-workspace, which returns the
+ * main column to the Conversation. Nothing is painted on the successful path;
+ * a status line appears only when resolution is slow, and failures stay on
+ * this page with a retry action.
  *
  * Constraints (see AGENTS.md): this file is plain JavaScript loaded by
  * `window.__ModuleLoader__` — no build step, no imports. React is the only
@@ -34,18 +34,22 @@ window.__ModuleLoader__.load({
     /** Agent preset the super session runs. The profile default is the same. */
     const AGENT_PRESET = 'personal'
 
-    /** Where the one super session's id is remembered between visits. */
-    const POINTER_KEY = 'dsh.personal-agent.v1.super-session'
-
     /**
-     * Titles that mark an existing Session as the super session. Creation
-     * writes the localized one; the other lets a Session titled in a different
-     * UI language be adopted instead of duplicated.
+     * Directory under the Host home that holds the super session. The Host
+     * half creates it on startup; the first click registers it as a Workspace.
      */
-    const TITLES = ['超级会话', 'Super Session']
+    const WORKSPACE_LEAF = 'super-agent'
 
     /** How long resolution may take before the page admits it is working. */
     const SLOW_OPEN_MS = 200
+
+    /**
+     * The Session and Workspace this run opened last. The Workspace list can
+     * lag a creation, and a second click while it lags would otherwise create
+     * a second Session; memory only, nothing is persisted.
+     */
+    let openedThisRun
+    let openedWorkspaceId
 
     /** Dictionaries; `zh` and `en` must carry the same keys. */
     const DICTIONARIES = {
@@ -55,6 +59,7 @@ window.__ModuleLoader__.load({
         'action.retry': '重试',
         'error.create': '创建会话失败：{message}',
         'error.open': '打开会话失败：{message}',
+        'error.workspace': '无法准备超级会话的工作区：{message}',
         'error.unavailable': '会话服务尚未就绪，请稍后再试。',
         'session.title': '超级会话',
       },
@@ -64,6 +69,7 @@ window.__ModuleLoader__.load({
         'action.retry': 'Retry',
         'error.create': 'Could not create the session: {message}',
         'error.open': 'Could not open the session: {message}',
+        'error.workspace': 'Could not prepare the super session workspace: {message}',
         'error.unavailable': 'The session service is not ready yet; try again shortly.',
         'session.title': 'Super Session',
       },
@@ -137,7 +143,6 @@ window.__ModuleLoader__.load({
   outline-offset: 2px;
 }
 `
-
     /**
      * Draw the panel icon.
      * @param {{ size?: number }} props - square edge supplied by the host row.
@@ -216,64 +221,149 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** The remembered super session id, when storage is readable. */
-    function readPointer() {
+    /** The Workspace snapshot, or undefined while the controller is absent. */
+    function workspaceSnapshot(ctx) {
       try {
-        const value = window.localStorage.getItem(POINTER_KEY)
-        return typeof value === 'string' && value.length > 0 ? value : undefined
+        const workspaces = ctx.get('workspaces')
+        const list = workspaces && workspaces.list
+        return list && typeof list.getSnapshot === 'function' ? list.getSnapshot() : undefined
       } catch (_reason) {
         return undefined
       }
     }
 
     /**
-     * Remember the super session id; storage failures cost only the shortcut,
-     * because the title marker and the list still identify the Session.
-     * @param {string} sessionId - the Session this row stands for.
+     * The Host home directory, available once the ready frame has landed.
+     * @param {any} ctx - Client root context.
+     * @returns The home path, or undefined before the handshake.
      */
-    function writePointer(sessionId) {
+    function hostHome(ctx) {
       try {
-        window.localStorage.setItem(POINTER_KEY, sessionId)
+        const home = ctx.get('remote')?.$host?.home
+        return typeof home === 'string' && home !== '' ? home : undefined
       } catch (_reason) {
-        // Private mode or a full quota: the title marker still finds it.
+        return undefined
       }
     }
 
     /**
-     * Whether a Session title marks the super session.
-     * @param {string | undefined} title - display title from the list.
-     * @returns True for a title written by this plugin.
+     * Build the super session's fixed Workspace path.
+     * @param {string} home - Host home directory.
+     * @returns `<home>/super-agent` with the home's own separator style.
      */
-    function markedTitle(title) {
-      return typeof title === 'string' && TITLES.some((prefix) => title.startsWith(prefix))
+    function superWorkspacePath(home) {
+      const base = home.replace(/[\\/]+$/, '')
+      const separator = base.includes('\\') ? '\\' : '/'
+      return `${base}${separator}${WORKSPACE_LEAF}`
     }
 
     /**
-     * Resolve the Session this row stands for without creating one.
-     *
-     * The remembered id wins when the list still carries it and the user has
-     * not archived it. Otherwise the newest listed Session carrying a super
-     * session title is adopted, so an earlier one keeps its history. While the
-     * list is still arriving its rows prove nothing, and the remembered id is
-     * used as it stands.
-     * @param {any} ctx - Client root context.
-     * @returns A Session id, or undefined when the super session must be created.
+     * Whether two Host paths name the same directory, ignoring separator
+     * style, trailing separators, and letter case.
+     * @param {unknown} left - one path.
+     * @param {unknown} right - the other path.
+     * @returns True when both spellings fold to the same key.
      */
-    function knownSuperSession(ctx) {
-      const stored = readPointer()
-      const list = sessionList(ctx)
-      if (!list || list.phase !== 'ready' || !list.byId) return stored
+    function samePath(left, right) {
+      if (typeof left !== 'string' || typeof right !== 'string' || left === '' || right === '') return false
+      const fold = (value) => value.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase()
+      return fold(left) === fold(right)
+    }
+
+    /**
+     * The already registered Workspace at `path`, when the list carries it.
+     * @param {any} ctx - Client root context.
+     * @param {string} path - candidate Workspace path.
+     * @returns The Workspace view, or undefined.
+     */
+    function workspaceAt(ctx, path) {
+      const snapshot = workspaceSnapshot(ctx)
+      const items = snapshot && Array.isArray(snapshot.items) ? snapshot.items : []
+      return items.find((item) => samePath(item.path, path))
+    }
+
+    /**
+     * Resolve the Workspace the super session lives in.
+     *
+     * The fixed directory under the Host home is the normal answer. Its
+     * absence from the registry is a first visit: register it, which is
+     * idempotent Host-side and requires the directory the Host half already
+     * created. Until the Host home is known, fall back to the legacy heuristic
+     * so the entry keeps working; that path never adopts an unrelated Session.
+     * @param {any} ctx - Client root context.
+     * @param {(key: string, params?: Record<string, unknown>) => string} t - bound translate.
+     * @returns The Workspace view (when resolved) and whether it is the fixed one.
+     */
+    async function resolveSuperWorkspace(ctx, t) {
+      const home = hostHome(ctx)
+      if (home !== undefined) {
+        const path = superWorkspacePath(home)
+        const known = workspaceAt(ctx, path)
+        if (known !== undefined) return { workspace: known, dedicated: true }
+        const workspaces = ctx.get('workspaces')
+        if (workspaces && typeof workspaces.create === 'function') {
+          let created
+          try {
+            created = await workspaces.create({ path })
+          } catch (reason) {
+            throw new Error(t('error.workspace', { message: messageOf(reason) }))
+          }
+          const view = created && created.workspace ? created.workspace : created
+          if (view && view.workspaceId !== undefined) return { workspace: view, dedicated: true }
+          // An older Host answers without the row: the follow stream fills it.
+          const relisted = workspaceAt(ctx, path)
+          if (relisted !== undefined) return { workspace: relisted, dedicated: true }
+        }
+      }
+      const workspaceId = currentWorkspaceId(ctx)
+      const snapshot = workspaceSnapshot(ctx)
+      const items = snapshot && Array.isArray(snapshot.items) ? snapshot.items : []
+      return {
+        workspace: items.find((item) => item.workspaceId === workspaceId),
+        dedicated: false,
+      }
+    }
+
+    /**
+     * The Session this run already opened, while the Workspace is still the
+     * same and the user has not archived it. This run's own knowledge covers
+     * the gap until the Workspace list carries the new Session.
+     * @param {any} ctx - Client root context.
+     * @param {any} workspace - resolved Workspace view.
+     * @returns A Session id, or undefined.
+     */
+    function openedSessionIn(ctx, workspace) {
+      if (workspace === undefined || workspace.workspaceId === undefined) return undefined
+      if (openedThisRun === undefined || workspace.workspaceId !== openedWorkspaceId) return undefined
+      return archivedSessions(ctx).has(openedThisRun) ? undefined : openedThisRun
+    }
+
+    /**
+     * The super session inside the dedicated Workspace: the one this run
+     * opened, else the most recently updated unarchived member. Archived
+     * Sessions keep their `sessionIds` slot so unarchiving restores the
+     * position, which is why the archive set is what excludes them.
+     * @param {any} ctx - Client root context.
+     * @param {any} workspace - resolved Workspace view.
+     * @returns A Session id, or undefined when the Workspace has none.
+     */
+    function superSessionIn(ctx, workspace) {
+      const opened = openedSessionIn(ctx, workspace)
+      if (opened !== undefined) return opened
+      if (workspace === undefined) return undefined
       const archived = archivedSessions(ctx)
-      if (stored !== undefined && list.byId[stored] !== undefined && !archived.has(stored)) return stored
-      const ids = Array.isArray(list.ids) ? list.ids : []
-      const adopted = ids
-        .map((id) => list.byId[id])
-        .filter((summary) => summary !== undefined && !archived.has(summary.id)
-          && markedTitle(summary.displayTitle))
-        .sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0))[0]
-      if (adopted === undefined) return undefined
-      writePointer(adopted.id)
-      return adopted.id
+      const ids = Array.isArray(workspace.sessionIds) ? workspace.sessionIds : []
+      const members = ids.filter((id) => !archived.has(id))
+      if (members.length === 0) return undefined
+      const list = sessionList(ctx)
+      const byId = (list && list.byId) || {}
+      const ranked = members
+        .map((id) => byId[id])
+        .filter((summary) => summary !== undefined)
+        .sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0))
+      // The Host prepends the newest attachment, the best answer available
+      // while the Session list has not caught up with the Workspace yet.
+      return ranked.length > 0 ? ranked[0].id : members[0]
     }
 
     /** Parse a timestamp defensively for ordering. */
@@ -283,9 +373,9 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Find the Workspace for a first visit: the current Session's when one is
-     * still retained, then the most recently updated Session's, then the
-     * newest Workspace, else none (the Host default applies).
+     * Find a Workspace when the Host home is unknown: the current Session's
+     * when one is still retained, then the most recently updated Session's,
+     * then the newest Workspace, else none (the Host default applies).
      * @param {any} ctx - Client root context.
      * @returns A Workspace id, or undefined.
      */
@@ -333,9 +423,9 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Rename the new Session; the title is also the durable marker that lets
-     * the row find this Session when the remembered id is gone, so it is the
-     * one creation step allowed to fail without losing the session.
+     * Best-effort rename after the Session is open. The title is a readable
+     * label, never identity, so a refusal (the `RemoteResult`) leaves the
+     * default title in place and costs nothing.
      * @param {any} sessions - Session Controller service.
      * @param {string} sessionId - the Session to rename.
      * @param {string} title - the localized super session title.
@@ -353,7 +443,7 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Create the super session on the personal preset, remember it, title it.
+     * Create the super session on the personal preset.
      * @param {any} sessions - Session Controller service.
      * @param {string | undefined} workspaceId - target Workspace, when known.
      * @param {(key: string, params?: Record<string, unknown>) => string} t - bound translate.
@@ -361,20 +451,16 @@ window.__ModuleLoader__.load({
      */
     async function createSuperSession(sessions, workspaceId, t) {
       const target = workspaceId === undefined ? {} : { workspaceId }
-      let sessionId
       try {
-        sessionId = await sessions.create({ ...target, agentPreset: AGENT_PRESET })
+        return await sessions.create({ ...target, agentPreset: AGENT_PRESET })
       } catch (reason) {
         if (!unknownPreset(reason)) throw new Error(t('error.create', { message: messageOf(reason) }))
         try {
-          sessionId = await sessions.create(target)
+          return await sessions.create(target)
         } catch (fallbackReason) {
           throw new Error(t('error.create', { message: messageOf(fallbackReason) }))
         }
       }
-      writePointer(sessionId)
-      await renameSession(sessions, sessionId, t('session.title'))
-      return sessionId
     }
 
     /**
@@ -389,11 +475,17 @@ window.__ModuleLoader__.load({
       if (!sessions || typeof sessions.create !== 'function' || typeof sessions.binding !== 'function') {
         throw new Error(t('error.unavailable'))
       }
-      let sessionId = knownSuperSession(ctx)
+      const resolved = await resolveSuperWorkspace(ctx, t)
+      const workspaceId = resolved.workspace && resolved.workspace.workspaceId
+      let sessionId = resolved.dedicated
+        ? superSessionIn(ctx, resolved.workspace)
+        : openedSessionIn(ctx, resolved.workspace)
       if (sessionId === undefined) {
-        sessionId = await createSuperSession(sessions, currentWorkspaceId(ctx), t)
+        sessionId = await createSuperSession(sessions, workspaceId, t)
         if (!stillHere()) return
       }
+      openedThisRun = sessionId
+      openedWorkspaceId = workspaceId
       // Navigation is owned by ui-workspace: `openSession` selects the Session
       // and returns the main column to the Conversation in one step.
       const navigation = ctx.get('uiWorkspace')
@@ -405,6 +497,9 @@ window.__ModuleLoader__.load({
       } catch (reason) {
         throw new Error(t('error.open', { message: messageOf(reason) }))
       }
+      // Only now does the Session have a binding: opening retained it. The
+      // title is cosmetic, so a failed rename is ignored.
+      await renameSession(sessions, sessionId, t('session.title'))
     }
 
     return {
