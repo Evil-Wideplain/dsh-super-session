@@ -7,6 +7,10 @@
 
 这两份是 `package.json` 的 `files` 明确包含的详情页，会随插件一起安装。
 
+## 仓库维护（不随包安装）
+
+- [AGENTS.md](../AGENTS.md) — 改这个仓库的 Agent 指南：常用校验命令、编辑地图（改什么去哪）、硬性规则、提交前验证清单。
+
 ## 研究资料（不随包安装）
 
 - [super-agent.md](super-agent.md) — DSH Super-agent（Router/Worker）设计与 system prompt 导读。
