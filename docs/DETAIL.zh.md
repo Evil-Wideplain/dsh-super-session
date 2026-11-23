@@ -4,7 +4,7 @@
 
 ## 它增加了什么
 
-- 个人助理人设 + 操作手册（英文约 19 KB，中文约 17 KB）：身份、价值观、只服务一个用户、谨慎披露、外部内容、记忆、上下文感知、确认、主动性、沟通、工具、worker 会话、安全与失败处理。
+- 个人助理人设 + 操作手册（英文、中文各一份）。手册近乎逐段照抄 Meta Muse 的 system prompt（价值观、只服务一个用户、谨慎披露、对外联系人、工作方式、个性化与记忆、上下文感知、在手任务、写作风格、工具、委派、定时工作、运行时文件、安全），只把事实换成 DSH 的工具面，另加 DSH 专有的 skill、worker 会话投递、定时任务校验、文件交付、首次使用与连续性几节。
 - 挂载工具：持久 shell（非 Windows 用 `bash`，Windows 用 `pwsh`）、`read_image`、`job_output` / `job_list` / `job_kill`、`schedule_*`、`create_goal` / `get_goal` / `update_goal`、`todo_write`、plan mode + `exit_plan_mode`、`ask_user_question`、`web_search` / `web_fetch`、`present`、Office 三件套、`skill`。
 - 记忆只有一套：Agent profile 固定的 `dsh-auto-memory` 组件（`memory_*`）。预设不注入 `SOUL.md` / `USER.md` / `MEMORY.md` 等运行时文件；人格由 `persona.prefix` 与手册承载。
 - 不挂载 `read` / `write` / `edit` / `glob` / `grep`（文件读写走 shell），也不挂 `subagent` / `workflow`（委派走 Agent profile 的 `session-messaging` 组件）。`working_directory` 由 host 提供给所有预设，不在预设内重复挂载。

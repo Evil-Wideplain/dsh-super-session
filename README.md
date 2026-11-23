@@ -26,6 +26,7 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
     muse-personal-agent.md     # 参考资料，不随包安装
     muse-system-prompt.md      # 参考资料，不随包安装
   icon.svg
+  AGENTS.md                    # 改仓库的 Agent 指南（不随包安装）
   README.md
 ```
 
@@ -61,19 +62,15 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 
 ### 从 Muse 借的
 
-- **结构与文风**：借鉴 Muse 的写法——从身份直接开始，价值观用连续散文展开，再写工作方式、记忆、表达、主动性、安全；不写文档说明，不罗列工具目录。
-- **工具使用纪律**：把工具返回当作事实来源、失败/空结果照实报告、不编造标识符、不猜耗时、审批结果最终——这几条改写自 Muse 的 Tools 章节；shell、`read_image`、web、Office、skill 等段落是 DSH 环境特有的，不在 Muse 里。
-- **记忆不是流水账**：只存耐久事实、偏好、承诺；不存 transcript、工具日志、临时进度。现在落在 Agent profile 的 memory 组件里。
-- **主动性有偏好记录**：用户写清楚想听什么、什么时候听；默认安静。偏好存进记忆，不靠单独文件。
-- **关系与分寸**：知道用户在意谁，但「no surprises」——只在对话有明确关联时使用。
-- **谨慎（Discretion）**：知道得多、说得少；一次泄露比一次任务失败更贵。
+- **手册主体照抄 Muse**：手册按顺序逐段来自 Muse 的 system prompt（`docs/muse-system-prompt.md`）——Who You Are 与七条价值观（Truth / Beauty / Respect / Fun / Connection / Curiosity / Due Diligence），Thoughtful follow-through、Who You Work For、Discretion and Alignment、External Parties、How You Work、How You Evolve、Proactivity、Personalization 与 Memory、The User's Relationships、Contextual Awareness、Managing Your Conversation Context 与 Keeping Track of Active Work、Writing Style（含 Final Response Brevity、Richer Responses）、Tools、Subagents、Scheduled Work、Runtime Files、Filesystem、Security（含 Anti-Phishing）、Safety。措辞不重写，长句、比喻、口气都保留。
+- **只改事实，不改文字**：替换的只有 DSH 与 Muse 产品不同的事实——工具名（`muse.exec` → `bash` / `pwsh`，`present`，`schedule_*`，`create_session_agent` / `send_session_message`，`todo_write`，`skill`）、运行时路径（`~/docs`、`~/MEMORY.md`、`~/USER.md` → 工作目录、`AGENTS.md`、profile 的 memory 组件）、产品身份（Meta / Muse Spark → DSH 预设 + `persona.prefix`），以及 DSH 没有的界面（Side Chats、Feed、Spaces、widgets、reactions、语音、Sent from / `[whatsapp]` 前缀）。
+- **DSH 专有补充**：Skills 一节（Muse 没有独立 skill 章节）、Worker Sessions 的投递机制（`create_session_agent`，brief 要自包含，结果用 `$DSH_SESSION_ID` 回报）、`schedule_*` 的校验步骤、`present` 的文件交付规则，以及 First Run、Continuity、Failure and Honesty 三节（Muse 里分散在别处或没有）。
 
 ### 没有照搬的
 
-- Muse 的六文件运行时体系（`SOUL.md` / `IDENTITY.md` / `USER.md` / `PEOPLE.md` / `MEMORY.md` / `PROACTIVE_PREFERENCES.md`）：已移除，改用 Agent profile 的 memory 组件；人格由 `persona.prefix` 与手册承载，避免双记忆。
-- Muse 的原文与 Meta 产品内容：只借鉴结构与文风，没有逐字复制。
-- Muse 的「家庭事务覆盖模型训练」等政策段：争议大、与 DSH 的通用安全边界冲突，未复制。
-- Muse 的 Secure VM / Sentinel / Wallet / Feed / Side Chats：属于 Meta 产品基础设施，DSH 里没有对应物。
+- Muse 的六文件运行时体系（`SOUL.md` / `IDENTITY.md` / `USER.md` / `PEOPLE.md` / `MEMORY.md` / `PROACTIVE_PREFERENCES.md`）与 `~/docs/` 文档树：DSH 里没有对应物，改由 `persona.prefix` 与 Agent profile 的 memory 组件承担。
+- Meta 产品基础设施：Secure VM / Sentinel / Wallet / Secure Vault / Feed / Spaces / Devices / Side Chats / Reactions / widgets / 语音与语音信箱。
+- 绑定 Meta 身份的句子（"You were created by Meta… Muse Spark 1.3"）、`~/docs/*.md` 的文档路由、合规与法务段落，以及 Commentary 段（原文捕获时为空）。
 - Router/Worker、Ticket、Mandate、准入表：那是另一个 bundle 的领域模型，不适合塞进单 Agent 预设。
 
 ## 工具集
@@ -116,10 +113,10 @@ worker 会话是独立会话，默认不使用本个人预设，因此不会共�
 
 ## 自定义
 
-- **改人格/规则**：编辑 `prompt/handbook.md`；改完需要重新加载 bundle（重启 DSH 或重新安装）才会生效，因为它在激活时读一次。
-- **切换手册语言**：默认读 `prompt/handbook.md`；要中文，给 `personal-handbook` 行加 `config.handbookPath: ./prompt/handbook.zh.md`。手册在激活时读一次，改完需要重新加载 bundle。
+- **改人格与规则**：人格/名字/语气/回复语言 → 改 `cordis.patch.yml` 的 `persona.prefix`；工作方式与规则 → 改 `prompt/handbook.md`（中英两份一起改）。手册在预设**挂载**时读一次，新建会话只是绑到已挂载的旧树、不会重读，所以改完要**重载 bundle（重启 DSH）**，重载后再新建会话验证；`link:` 安装不必重新"安装"。
+- **切换手册语言**：默认读 `prompt/handbook.md`；要中文，给 `personal-handbook` 行加 `config.handbookPath: ./prompt/handbook.zh.md`。手册同样在挂载时读一次，改完同样要重载 bundle（重启 DSH）再新建会话。
 - **改身份**：编辑 `cordis.patch.yml` 里 `persona.prefix`（名字、语气、边界都在这里）。
-- **加工具**：往 `plugins` 列表里加官方包；可参考 `dsh-web-app/presets/standard.patch.yml`。
+- **加工具**：往 `plugins` 列表里加官方包；可参考 `dsh-web-app/presets/standard.patch.yml`。加/改工具面时要同步下方「工具集」表与 `docs/DETAIL.md` 的 Mounted tools 段，不能只改 YAML。
 - **加回文件工具**：把 `image` 行换成不带 config 的 `@deepseek-ai/dsh-tool-fs`，即得到 `read`/`write`/`edit`；再加 `@deepseek-ai/dsh-tool-fs-search` 得到 `glob`/`grep`。
 - **改包名**：如果重命名 `@local/dsh-personal-agent`，同步改 `personal-handbook` 行与任何引用该包名的地方。
 

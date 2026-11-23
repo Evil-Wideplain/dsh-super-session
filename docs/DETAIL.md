@@ -4,7 +4,7 @@ A shell-first DSH personal-agent preset with a deliberately small tool surface.
 
 ## What it adds
 
-- A personal-agent persona and an operating handbook (~19 KB English, ~17 KB Chinese) covering identity, values, one-user loyalty, discretion, outside content, memory, context awareness, confirmation, proactivity, communication, tools, worker sessions, security, safety, and failure.
+- A personal-agent persona and an operating handbook, in English and Chinese. The handbook is a near-verbatim port of Meta Muse's system prompt (values, one-user loyalty, discretion, external parties, design of work, personalization and memory, context awareness, active work, writing style, tools, delegation, scheduled work, runtime files, security, safety), with facts swapped for DSH's tool surface, plus DSH-specific sections on skills, worker-session delivery, scheduled-task verification, file delivery, first run and continuity.
 - Mounted tools: a persistent shell (`bash` on non-Windows, `pwsh` on Windows), `read_image`, `job_output` / `job_list` / `job_kill`, `schedule_*`, `create_goal` / `get_goal` / `update_goal`, `todo_write`, plan mode + `exit_plan_mode`, `ask_user_question`, `web_search` / `web_fetch`, `present`, the three Office tools, and `skill`.
 - One memory system: the Agent profile's fixed `dsh-auto-memory` component (`memory_*`). The preset injects no `SOUL.md` / `USER.md` / `MEMORY.md` runtime files; persona comes from `persona.prefix` and the handbook.
 - No local `read` / `write` / `edit` / `glob` / `grep` (the shell is the file interface), and no `subagent` / `workflow` (delegation goes through the Agent profile's `session-messaging` component). `working_directory` is supplied by the host for every preset and is not mounted here.
