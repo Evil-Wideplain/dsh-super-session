@@ -1,0 +1,4 @@
+# Normalize every text file to LF in the repository and in the working tree.
+# A CRLF flip once turned a one-line edit into a 731-line phantom diff.
+* text=auto eol=lf
+

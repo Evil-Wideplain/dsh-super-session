@@ -28,16 +28,33 @@ export const name = 'personal-handbook'
 export const inject = ['systemPrompt']
 
 /**
- * Read the handbook once at activation. `handbookPath` may point at another
- * file relative to this package (for example `prompt/handbook.zh.md`) or at an
- * absolute path. A missing file degrades to the identity line.
+ * Resolve the handbook file a preset row would read.
+ *
+ * `handbookPath` may point at another file relative to this package (for
+ * example `prompt/handbook.zh.md`) or at an absolute path; unset falls back to
+ * {@link DEFAULT_HANDBOOK}. Exported so `scripts/verify.mjs` prints the same
+ * path the preset mounts, instead of a second guess at the rule.
+ *
+ * @param {{ handbookPath?: string }} [config]
+ * @returns {string} Absolute path of the handbook file.
  */
-function loadHandbook(config) {
+export function handbookFile(config) {
   const requested = typeof config?.handbookPath === 'string' && config.handbookPath.trim()
     ? config.handbookPath.trim()
     : DEFAULT_HANDBOOK
-  const file = isAbsolute(requested) ? requested : resolve(PACKAGE_DIR, requested)
+  return isAbsolute(requested) ? requested : resolve(PACKAGE_DIR, requested)
+}
+
+/**
+ * Read the handbook once at activation. A missing file degrades to the identity
+ * line rather than failing the preset.
+ *
+ * @param {{ handbookPath?: string }} [config]
+ * @returns {string} The handbook text injected as the `personal:handbook` section.
+ */
+export function loadHandbook(config) {
   try {
+    const file = handbookFile(config)
     return readFileSync(file, 'utf8').trim()
   } catch {
     return 'Work the task you were given, verify before claiming success, and confirm before acting outside this conversation.'

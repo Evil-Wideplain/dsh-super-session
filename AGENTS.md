@@ -7,10 +7,8 @@
 
 | 命令 | 作用 |
 |------|------|
-| `node -e "import('./context.js').then(m=>console.log(m.name, m.inject))"` | 必跑：插件模块能加载、导出 `name`/`inject` |
-| `node -e "const fs=require('fs');for(const f of ['locale/en.json','locale/zh.json'])JSON.parse(fs.readFileSync(f,'utf8'));console.log('locale ok')"` | 必跑：两份 locale 是合法 JSON |
-| `[ "$(grep -c '^#' prompt/handbook.md)" = "$(grep -c '^#' prompt/handbook.zh.md)" ] && [ "$(grep -c '^#' prompt/worker.md)" = "$(grep -c '^#' prompt/worker.zh.md)" ] && echo parity` | 必跑：两对手册的中英章节数各自一致 |
-| `node -e "const p=require('./package.json'),fs=require('fs');const miss=p.files.filter(f=>fs.globSync(f).length===0);console.log(miss.length?miss:'files ok')"` | 必跑：`files` 里的路径（含 glob）都存在 |
+| `node scripts/verify.mjs` | 必跑：插件可加载、两份 locale 合法、两对手册章节数各自一致、`files` 全存在、两个预设行与各自的 `handbookPath` 都解析得到 |
+| `node scripts/verify.mjs --handbook` | 打印每个预设**真正会注入**的手册路径、字节数与 sha256：重载后拿它核对会话里的系统提示词，别靠猜 |
 | DSH → 插件 → 添加插件 → 选 `C:\Code\super_agent` → **重载 DSH** → **新建会话** | 真机验证：重载 DSH 才会重读手册；重载后再新建会话，旧会话继续用旧预设 |
 
 ## 项目结构
@@ -44,7 +42,7 @@
 
 - **单一真相**：人格在 persona 行，程序在手册，工具在 `cordis.patch.yml`；同一句话只写一处。
 - **中英成对**：两对手册（`handbook.*`、`worker.*`）各自章节一一对应，改一份必须同步另一份，跑章节数校验。
-- **手册是注入资产**：`context.js` 在预设**挂载**时读一次；新建会话复用同一棵已挂载的树，不会重读。改完要**重载 DSH**（`link:` 安装无需重装），重载后再新建会话验证。
+- **手册是注入资产**：`context.js` 在预设**挂载**时读一次；新建会话复用同一棵已挂载的树，不会重读。改完要**重载 DSH**（`link:` 安装无需重装），重载后再新建会话验证。判断某个会话用的是哪一版：`node scripts/verify.mjs --handbook` 记下 sha256 与首行，再比对该会话系统提示词里手册的开头——对不上就是没重载，不要怀疑手册内容写错了。
 - **不重复挂载 profile 组件**：`memory_*`、worker 会话、`session_search`、`working_directory` 由 host 或 profile 提供，预设里再加一份就是重复工具。
 - **工具面克制**：不挂 `read`/`write`/`edit`/`glob`/`grep`（shell 是文件接口），不挂 `subagent`/`workflow`（worker 会话走 `session-messaging`）。
 - **两个预设各自成树**：`worker` 只挂有界任务需要的工具，交互面（定时任务、plan mode、结构化提问、`present`）留在 `personal`；目标（`create_goal` / `tool-goal`）两边都有，worker 用它在多轮次里守住同一个任务。两个预设都不重复挂 profile 的全局组件。
@@ -52,7 +50,7 @@
 
 ## 提交前验证清单
 
-1. 跑「常用命令」里 4 条 `node`/`grep` 校验，全部通过。
+1. 跑 `node scripts/verify.mjs`，全部通过（它替代了原先 4 条一次性 `node`/`grep` 校验）。
 2. 动了手册：中英章节数一致，且新增段落在两份里都有（两对手册分别校验）。
 3. 新增了随包文件：已加进 `package.json` 的 `files`。
 4. 重载 DSH 后新建会话，问一句「你能做什么」，确认新段落真的注入（旧会话不会变）。
