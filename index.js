@@ -11,10 +11,20 @@
  * activation, so the Workspace is in the sidebar on startup instead of
  * appearing on the first click.
  *
- * The division is deliberate: the Host owns the directory and the
- * registration, and the browser half only recognizes the Workspace by its path
- * or title, then opens or creates its Session. The browser half never invents
- * a path and never registers anything.
+ * It also attaches the fixed super session to that Workspace when a Session of
+ * that id already exists on disk. The Conversation only enables its composer
+ * for a blank Session that belongs to a Workspace, so a Session an earlier
+ * version created from a bare `cwd` is openable but cannot be typed into; the
+ * client half has no attach call (`archiveSession`, `unarchiveSession`,
+ * `pinSession`, `insertSessionBefore` are the only Workspace verbs it can
+ * reach), while the registry's `attachSession` is right here. The attachment is
+ * idempotent, validates the Session's stored `cwd` against the Workspace path,
+ * and only ever touches the one fixed id.
+ *
+ * The division is deliberate: the Host owns the directory, the registration
+ * and that one repair, and the browser half only recognizes the Workspace by
+ * its path or title, then opens or creates its Session there. The browser half
+ * never invents a path and never registers anything.
  *
  * The row's name is the bare package specifier, and that is load-bearing: the
  * client scanner accepts an exact package name only (`exactPackageSpecifier`),
@@ -44,6 +54,12 @@ const WORKSPACE_LEAF = 'super-workspace'
 
 /** Title the sidebar shows for it; the browser half also recognizes it. */
 const WORKSPACE_TITLE = 'Super Workspace'
+
+/**
+ * The one Session the sidebar panel opens, named by the browser half. It is a
+ * plain string, not a UUID, and only this value ties the two halves together.
+ */
+const SUPER_SESSION_ID = 'session-super-session'
 
 /**
  * Locate the account's Documents directory.
@@ -105,10 +121,59 @@ async function prepareSuperWorkspace(ctx) {
     console.warn('[dsh-personal-agent] the workspace registry is unavailable; the super workspace stays unregistered')
     return
   }
+  let workspace
   try {
-    await registry.create(directory, WORKSPACE_TITLE)
+    workspace = await registry.create(directory, WORKSPACE_TITLE)
   } catch (error) {
     console.warn(`[dsh-personal-agent] could not register ${directory}:`, error)
+    return
+  }
+  await attachSuperSession(ctx, workspace)
+}
+
+/**
+ * Attach the fixed super session to the built-in Workspace when it already
+ * exists outside it.
+ *
+ * Versions of the browser half that passed `cwd` only left the fixed Session in
+ * "Ungrouped", and the Conversation refuses input in a blank Session that
+ * belongs to no Workspace. Nothing in the client can attach it, so the Host
+ * repairs it once here: after this run the Session is an ordinary member and
+ * every later click reuses it through `workspaceId`.
+ *
+ * Idempotent on both ends: a Session already on the account is left alone, and
+ * `attachSession` validates the stored `cwd` itself. A Session that does not
+ * exist yet (fresh install) is skipped without a warning, because the browser
+ * half creates it on the first click.
+ * @param {any} ctx - Host context carrying the Session persistence service.
+ * @param {any} workspace - the registry's Workspace entity for the directory.
+ * @returns Completion; never rejects.
+ */
+async function attachSuperSession(ctx, workspace) {
+  if (!workspace || typeof workspace.attachSession !== 'function') {
+    console.warn('[dsh-personal-agent] the super workspace cannot attach sessions; the super session stays outside it')
+    return
+  }
+  const members = Array.isArray(workspace.sessionIds) ? workspace.sessionIds : []
+  if (members.includes(SUPER_SESSION_ID)) return
+  const persistence = ctx.get('sessionPersistence')
+  if (!persistence || typeof persistence.list !== 'function') {
+    console.warn('[dsh-personal-agent] session storage is unavailable; the super session was not attached')
+    return
+  }
+  let stored = false
+  try {
+    const snapshots = await persistence.list()
+    stored = snapshots.some((snapshot) => snapshot && snapshot.header && snapshot.header.id === SUPER_SESSION_ID)
+  } catch (error) {
+    console.warn('[dsh-personal-agent] could not list stored sessions; the super session was not attached:', error)
+    return
+  }
+  if (!stored) return
+  try {
+    await workspace.attachSession(SUPER_SESSION_ID)
+  } catch (error) {
+    console.warn(`[dsh-personal-agent] could not attach ${SUPER_SESSION_ID} to the super workspace:`, error)
   }
 }
 
@@ -121,7 +186,7 @@ async function prepareSuperWorkspace(ctx) {
  * @param {any} ctx - Host context.
  */
 export function apply(ctx) {
-  ctx.inject(['workspaceRegistry'], (registryCtx) => {
+  ctx.inject(['workspaceRegistry', 'sessionPersistence'], (registryCtx) => {
     prepareSuperWorkspace(registryCtx).catch((error) => {
       console.warn('[dsh-personal-agent] super workspace preparation failed:', error)
     })

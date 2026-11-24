@@ -14,8 +14,8 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
   package.json                 # bundle 清单：dsh.bundle.patch
   cordis.patch.yml             # 三个预设的声明 + 各自的工具清单
   context.js                   # 预设插件：按 handbookPath 注入手册
-  client.js                    # 浏览器端插件：侧边栏「超级会话」入口，直接进它固定工作区里的那个会话
-  index.js                     # Host 半边：开机建好并注册 <Documents>/deepseek-harness/super-workspace，让 Loader 发现 dsh.client
+  client.js                    # 浏览器端插件：侧边栏「超级会话」入口，直接进固定 id 的那个常驻会话（挂在内置 Super Workspace 里，该工作区分组在侧边栏隐藏）
+  index.js                     # Host 半边：开机建好并注册 <Documents>/deepseek-harness/super-workspace、把固定 id 的会话 attach 进去，让 Loader 发现 dsh.client
   guard.js                     # Host 插件：组长作用域隐藏 create_session_agent，提供固定 agent_preset: worker 的 dispatch_worker
   prompt/
     handbook.md                # 个人助理手册（英文，默认）
@@ -97,7 +97,9 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 
 **执行面的工具不在个人助理这里**：`read_image`、`job_output` / `job_list` / `job_kill`、`web_search` / `web_fetch`、Office 三件套都归**工作会话**预设。lead 不亲自看图、跑长命令、查网页、做文档——这些活派 worker 去干，自己只留判断、简报和验收。skill 目录不设限制：全局用户技能和项目级 `.dsh/skills` / `.agents/skills` 都默认加载，项目根按会话当时的 cwd 现算，换工作区就换一套技能；`office` / `office-docx` / `office-xlsx` / `office-pptx` 那四个来自 profile 级的 `dsh-skill-office`，三个预设都有。
 
-bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 就是你那一个常驻会话，点它直接进对话，没有中间页、也没有「新建」按钮。它有自己的**内置工作区** `<Documents>\deepseek-harness\super-workspace`（`Documents` 默认是用户主目录下的 `Documents`，被重定向时按系统设置解析），标题是 `Super Workspace`，与 DSH 自己的 `default-workspace` 同级。这个目录和它的工作区注册都在 **DSH 启动时**由 Host 半边建好（幂等，失败只记一条警告），侧边栏一打开就能看到，不用先点一次。面板本身只认这个工作区（按路径尾部 `deepseek-harness/super-workspace`，或标题恰好是 `Super Workspace`），在里面用 **个人助理** 预设建一个标题为 `超级会话` 的会话；以后每次都回到同一工作区里最新的那个未归档会话，把那个会话归档了，再点会在同一工作区另建一个。找不到工作区时它不猜路径，直接提示「重启 DSH 后会自动建好」并给一个重试按钮。
+bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 就是你那一个常驻会话，点它直接进对话，没有中间页、也没有「新建」按钮。它按一个**固定的会话 id**（`session-super-session`，DSH 接受任意字符串 id）认这个会话，并把它**挂在内置工作区**里。挂工作区是硬性前提：一个还没发过消息的空白会话如果不属于任何工作区，DSH 的对话界面会把输入框换成「选择一个工作区开始」，根本不能打字；所以第一次点传的是 `workspaceId`（`workspaceId` 与 `cwd` 不能同时传，Host 会拒），Host 在同一次调用里把它 attach 进工作区。这个工作区是 `<Documents>\deepseek-harness\super-workspace`（`Documents` 默认是用户主目录下的 `Documents`，被重定向时按系统设置解析），标题 `Super Workspace`，与 DSH 自己的 `default-workspace` 同级；目录、工作区注册，以及旧版本用 `cwd` 建出来的那个固定 id 会话的一次性 attach，都在 **DSH 启动时**由 Host 半边完成（幂等，失败只记一条警告）。这个工作区**不在侧边栏的工作区列表里显示**：DSH 没有「隐藏工作区」的字段或命令，工作区列表又是共享 store（改它会动到真实状态），所以 client 半边只在**展示层**注入一条按树行 `data-row-key="workspace:<id>"` 定位的样式，把这一组连同它的会话行一起去掉，插件卸载时移除样式即恢复；它仍然必须存在，否则空白会话的输入框会变成「选择一个工作区」。面板按路径尾部 `deepseek-harness/super-workspace` 或标题恰好是 `Super Workspace` 认这个工作区，取它的 id 当 attach 目标、取它的路径判断成员身份。第一次点用 **个人助理** 预设把这个固定 id 的会话建出来（标题 `超级会话`），以后每次点都回到它；归档后再点会先取消归档再打开；它还是空白、而记录的预设不是 `personal` 时，会用同一个 id 再 `create` 一次改回 `personal`（已经发过第一轮的会话不动）。
+
+**残留风险**：它现在是 `Super Workspace` 的普通成员，所以在它还是空白（一轮都没发过）的这段时间里，如果你在那个工作区里点普通「新建会话」，DSH 会**复用它**并改挂当前默认预设（`standard`）。点开面板会改回 `personal`，但只在那第一轮还没发出去时有效；一旦那一轮发出去了，预设就锁死了。这个窗口没有更干净的关法：DSH 只把 `turn/start` 当作「不再是空白」，没有别的接口能让它提前脱离可复用状态。旧版本在同一工作区里用别的 id 建过的会话不再被这个入口打开，它作为那个工作区的普通会话留着，历史不丢。找不到工作区时它不猜路径，直接提示「重启 DSH 后会自动建好」并给一个重试按钮；固定会话存在但还没挂进工作区时提示「重启 DSH 后会自动挂好」。
 
 面板要出现在侧边栏，`cordis.patch.yml` 里那条 client 行的 `name` 必须写成**裸包名** `@local/dsh-personal-agent`：客户端扫描器只认包名（或 `@scope/名`），它把名字解析到包根，再读包根旁边的 `./client` 导出。写成子路径（例如 `@local/dsh-personal-agent/context.js`）或 `file:` URL 都会被当成非 client 行静默跳过，侧边栏什么都不显示，也不会报错。
 
