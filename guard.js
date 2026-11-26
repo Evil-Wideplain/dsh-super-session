@@ -1,10 +1,10 @@
 /**
- * Host-side guard for the coordinator preset: a manager may dispatch workers
+ * Host-side guard for the coordinator preset: a coordinator may dispatch workers
  * and nothing else.
  *
  * The preset-scoped tool layer shadows global registrations, so registering a
  * same-named definition from this row hides `session-messaging`'s
- * `create_session_agent` from every agent bound to the `manager` preset. The
+ * `create_session_agent` from every agent bound to the `coordinator` preset. The
  * shadow carries `when: () => false`, so it is never admitted to a model step
  * and a direct call resolves as an unknown tool; its `execute` exists only to
  * give a deliberate error if some future caller resolves the definition
@@ -16,11 +16,19 @@
  * so the first message frame, sender identity, workspace authorization, rate
  * limit, and error mapping stay exactly those of `create_session_agent`.
  *
- * This file is mounted only by the `preset-manager` plugin list; it has no
- * effect on the personal or worker presets. Plain JavaScript, no imports.
+ * The location is not optional: every call must name the repository the task
+ * belongs to, and the empty Super Workspace shell is refused outright. A
+ * default of "the caller's working directory" would put every worker of the
+ * standing session inside that shell, which holds no repository.
+ *
+ * This file is mounted only by the `preset-coordinator` plugin list; it has no
+ * effect on the personal or worker presets. Plain JavaScript plus the
+ * `node:path` built-in.
  *
  * @module @local/dsh-personal-agent/guard
  */
+
+import { isAbsolute } from 'node:path'
 
 /** Plugin name shown by the Loader. */
 export const name = 'dispatch-guard'
@@ -28,14 +36,20 @@ export const name = 'dispatch-guard'
 /** Host services this row needs before it can register the replacement tool. */
 export const inject = ['tools', 'sessionMessaging']
 
-/** The global tool hidden inside the manager scope. */
+/** The global tool hidden inside the coordinator scope. */
 export const DENIED_TOOL = 'create_session_agent'
 
-/** The manager-facing replacement tool. */
+/** The coordinator-facing replacement tool. */
 export const DISPATCH_TOOL = 'dispatch_worker'
 
-/** The only Agent preset a manager may dispatch. */
+/** The only Agent preset a coordinator may dispatch. */
 export const WORKER_PRESET = 'worker'
+
+/**
+ * Path tail of the empty shell Workspace the bundle registers for the standing
+ * session. It is a registration anchor, never a task directory.
+ */
+const SUPER_WORKSPACE_TAIL = 'deepseek-harness/super-workspace'
 
 /** Largest tool-render text for dynamic values, in code points. */
 const RENDER_LIMIT = 120
@@ -72,6 +86,20 @@ function requiredText(args, key) {
   const value = args[key]
   if (typeof value !== 'string') throw new Error(`dispatch_worker: "${key}" must be a string`)
   return value
+}
+
+/**
+ * Whether a path is the empty Super Workspace shell.
+ *
+ * Matches the same path tail the client half uses to recognize that Workspace,
+ * on either separator and without regard to case (Windows paths are
+ * case-insensitive; the tail is the part that identifies the directory).
+ * @param cwd - absolute directory a caller passed.
+ * @returns whether it is the shell Workspace rather than a task repository.
+ */
+function isSuperWorkspace(cwd) {
+  const folded = cwd.replace(/\\/gu, '/').replace(/\/+$/u, '').toLowerCase()
+  return folded === SUPER_WORKSPACE_TAIL || folded.endsWith('/' + SUPER_WORKSPACE_TAIL)
 }
 
 /**
@@ -112,7 +140,7 @@ function line(value) {
 }
 
 /**
- * The hidden shadow that replaces `create_session_agent` in the manager scope.
+ * The hidden shadow that replaces `create_session_agent` in the coordinator scope.
  * @returns a tool definition registered with `when: () => false`.
  */
 function deniedTool() {
@@ -131,7 +159,7 @@ function deniedTool() {
 }
 
 /**
- * Build the manager-facing dispatch tool over session-messaging's creation
+ * Build the coordinator-facing dispatch tool over session-messaging's creation
  * service.
  * @param creation - `ctx.sessionMessaging.creation`.
  * @returns the tool definition.
@@ -159,13 +187,15 @@ export function createDispatchTool(creation) {
         },
         cwd: {
           type: 'string',
-          description: 'Absolute working directory for the worker. Defaults to your own working directory; '
-            + 'another directory requires the profile to allow cross-workspace creation.',
+          description: 'Required. Absolute path of the repository the task belongs to, for example '
+            + '`C:\\Code\\super_agent`; there is no default. Never the empty Super Workspace shell '
+            + '(`<Documents>\\deepseek-harness\\super-workspace`). Another directory requires the profile '
+            + 'to allow cross-workspace creation.',
         },
         workspace: {
           type: 'string',
-          description: 'Target workspace id or registered workspace path. Cannot be combined with a '
-            + 'different cwd; cross-workspace creation follows the profile policy.',
+          description: 'Optional registered workspace id or path; it must resolve to the same directory '
+            + 'as the required cwd. Cross-workspace creation follows the profile policy.',
         },
         ensure_workspace: {
           type: 'boolean',
@@ -177,7 +207,7 @@ export function createDispatchTool(creation) {
           description: 'Optional worker session title, written before the first turn starts.',
         },
       },
-      required: ['prompt'],
+      required: ['prompt', 'cwd'],
     },
     output: {
       schema: {
@@ -214,7 +244,14 @@ export function createDispatchTool(creation) {
       const parsed = asObject(args)
       rejectUnknown(parsed, ['prompt', 'cwd', 'workspace', 'ensure_workspace', 'title'])
       const prompt = requiredText(parsed, 'prompt')
-      const cwd = optionalString(parsed, 'cwd')
+      const cwd = requiredText(parsed, 'cwd')
+      if (!isAbsolute(cwd)) throw new Error(`dispatch_worker: "cwd" must be an absolute path: ${cwd}`)
+      if (isSuperWorkspace(cwd)) {
+        throw new Error(
+          'dispatch_worker: cwd must be the repository the task belongs to '
+          + '(for example C:\\Code\\super_agent), not the empty Super Workspace shell',
+        )
+      }
       const workspace = optionalString(parsed, 'workspace')
       const ensureWorkspace = optionalBoolean(parsed, 'ensure_workspace')
       const title = optionalString(parsed, 'title')
@@ -229,7 +266,7 @@ export function createDispatchTool(creation) {
       try {
         result = await creation.create(caller, {
           prompt,
-          ...(cwd === undefined ? {} : { cwd }),
+          cwd,
           ...(workspace === undefined ? {} : { workspace }),
           ...(ensureWorkspace === undefined ? {} : { ensureWorkspace }),
           ...(title === undefined ? {} : { title }),
@@ -241,7 +278,7 @@ export function createDispatchTool(creation) {
           status: 'failed',
           session_id: '',
           short_id: '',
-          cwd: cwd ?? callerCwd ?? '',
+          cwd,
           message_id: '',
           detail: `Could not dispatch a worker: ${message}`,
         }
@@ -261,7 +298,7 @@ export function createDispatchTool(creation) {
 }
 
 /**
- * Install the manager guard: hide `create_session_agent`, expose
+ * Install the coordinator guard: hide `create_session_agent`, expose
  * `dispatch_worker` with its Agent preset fixed to `worker`.
  * @param {any} ctx - preset-scoped Cordis context with `tools` and `sessionMessaging`.
  */

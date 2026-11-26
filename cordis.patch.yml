@@ -170,10 +170,14 @@
 #
 # It mounts the shell-based working surface (persistent shell, jobs, todos, web,
 # Office, skills, image recognition) plus goals, so a brief that spans many
-# rounds keeps one objective and continues on its own. It deliberately does not
-# mount the rest of the interaction surface: no schedules, plan mode, questions
-# or file presentation, because the lead owns those. `send_session_message`
-# arrives from the profile's session-messaging plugin, not from this preset.
+# rounds keeps one objective and continues on its own. It also mounts the
+# delegation tools (`subagent`, `subagent_fork`, `send_message`, `list_agents`,
+# `wait_agent`) so one worker can fan a long brief out to teammates, and the
+# bundle's `team.js` row turns Agent Teams on for worker Sessions so the shared
+# task board is usable. It deliberately does not mount the rest of the
+# interaction surface: no schedules, plan mode, questions or file presentation,
+# because the lead owns those. `send_session_message` arrives from the profile's
+# session-messaging plugin, not from this preset.
 
 - insert:
     - id: preset-worker
@@ -303,7 +307,27 @@
           - id: tool-office
             name: '@deepseek-ai/dsh-tool-office'
 
-# Manager preset — one goal, one layer of worker sessions, and a report back to
+          # Delegation: a long brief may fan out across subagents, and the
+          # worker may coordinate them on the shared Team task board. The three
+          # rows mirror the standard preset minus its workflow tools. Host
+          # defaults bound the fan-out: `subagent.maxDepth` is 1, so a teammate
+          # cannot delegate further, and `maxActiveSubagents` is 8.
+          - id: tool-subagent-control
+            name: '@deepseek-ai/dsh-tool-subagent-control'
+            config:
+              interrupt: false
+          - id: tool-subagent
+            name: '@deepseek-ai/dsh-tool-subagent'
+            config:
+              provider: spawn
+              toolName: subagent
+          - id: tool-subagent-fork
+            name: '@deepseek-ai/dsh-tool-subagent'
+            config:
+              provider: fork
+              toolName: subagent_fork
+
+# Coordinator preset — one goal, one layer of worker sessions, and a report back to
 # the lead. It carries neither the user-facing surface nor the work tools: its
 # shell exists to check what a worker changed, and everything else is
 # dispatched.
@@ -315,11 +339,11 @@
 # arrives from the profile's session-messaging plugin, not from this preset.
 
 - insert:
-    - id: preset-manager
+    - id: preset-coordinator
       name: '@deepseek-ai/dsh-agent-preset'
       config:
-        id: manager
-        name: 组长（Coordinator）
+        id: coordinator
+        name: Coordinator
         description: 管一份目标：拆解、派 worker、看证据验收，向派它的 lead 汇报。
         order: 22
         plugins:
@@ -331,10 +355,10 @@
 
           # Same handbook plugin as the other presets, pointed at the coordinator
           # handbook.
-          - id: manager-handbook
+          - id: coordinator-handbook
             name: '@local/dsh-personal-agent/context.js'
             config:
-              handbookPath: ./prompt/manager.md
+              handbookPath: ./prompt/coordinator.md
 
           # Runtime guard: the coordinator may start worker sessions only. This
           # row hides the global create_session_agent inside this preset's tool
@@ -428,6 +452,16 @@
 # URL, is not recognized as a client row, so the panel never reaches the
 # browser and the sidebar has no row to show. Note also that `!!js` is Loader
 # dialect for `config` values alone; row metadata stays literal.
+
+# Worker Team mode: a host row rather than a preset row, because Team mode is a
+# per-Session selection that no plugin inside the preset realm can write. It
+# waits for the three services, then enables Team mode only for Sessions whose
+# recorded preset is `worker`; personal and coordinator Sessions keep the
+# default (off). See `team.js`.
+- insert:
+    - id: worker-team-mode
+      name: '@local/dsh-personal-agent/team.js'
+
 - insert:
     - id: super-session-entry
       name: '@local/dsh-personal-agent'

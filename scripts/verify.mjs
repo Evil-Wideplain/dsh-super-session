@@ -138,6 +138,7 @@ async function main() {
   const manifest = readJson('package.json')
   const plugin = await import(pathToFileURL(resolve(ROOT, 'context.js')).href)
   const guard = await import(pathToFileURL(resolve(ROOT, 'guard.js')).href)
+  const team = await import(pathToFileURL(resolve(ROOT, 'team.js')).href)
 
   check(plugin.name === 'personal-handbook', 'plugin exports a name', String(plugin.name))
   check(
@@ -163,7 +164,7 @@ async function main() {
   for (const [english, chinese] of [
     ['prompt/handbook.md', 'prompt/handbook.zh.md'],
     ['prompt/worker.md', 'prompt/worker.zh.md'],
-    ['prompt/manager.md', 'prompt/manager.zh.md'],
+    ['prompt/coordinator.md', 'prompt/coordinator.zh.md'],
   ]) {
     const [a, b] = [headingCount(english), headingCount(chinese)]
     check(a === b, `${basename(english)} and ${basename(chinese)} heading parity`, `${a} vs ${b}`)
@@ -196,14 +197,14 @@ async function main() {
   // The coordinator is the one preset that only dispatches: it must name its
   // own handbook, keep the coordination surface, and carry none of the work or
   // interaction tools, which belong to the worker and personal presets.
-  const manager = blocks.find(block => block.id === 'preset-manager')
-  check(Boolean(manager), 'preset-manager is declared')
-  if (manager) {
-    check(field(manager.body, 'id') === 'manager', 'preset-manager declares the manager id', field(manager.body, 'id'))
+  const coordinator = blocks.find(block => block.id === 'preset-coordinator')
+  check(Boolean(coordinator), 'preset-coordinator is declared')
+  if (coordinator) {
+    check(field(coordinator.body, 'id') === 'coordinator', 'preset-coordinator declares the coordinator id', field(coordinator.body, 'id'))
     check(
-      field(manager.body, 'handbookPath') === './prompt/manager.md',
-      'preset-manager names the manager handbook',
-      field(manager.body, 'handbookPath'),
+      field(coordinator.body, 'handbookPath') === './prompt/coordinator.md',
+      'preset-coordinator names the coordinator handbook',
+      field(coordinator.body, 'handbookPath'),
     )
     const required = [
       'dsh-tool-goal',
@@ -213,8 +214,8 @@ async function main() {
       'dsh-tool-bash-persistent',
       'dsh-tool-pwsh-persistent',
     ]
-    const missing = required.filter(name => !manager.body.includes(name))
-    check(missing.length === 0, 'preset-manager mounts the coordination surface', missing.join(', '))
+    const missing = required.filter(name => !coordinator.body.includes(name))
+    check(missing.length === 0, 'preset-coordinator mounts the coordination surface', missing.join(', '))
     const forbidden = [
       'dsh-tool-web',
       'dsh-tool-office',
@@ -225,11 +226,11 @@ async function main() {
       'dsh-plan-mode',
       'dsh-tool-schedule',
     ]
-    const mounted = forbidden.filter(name => manager.body.includes(name))
-    check(mounted.length === 0, 'preset-manager mounts no work or interaction tools', mounted.join(', '))
+    const mounted = forbidden.filter(name => coordinator.body.includes(name))
+    check(mounted.length === 0, 'preset-coordinator mounts no work or interaction tools', mounted.join(', '))
     check(
-      manager.body.includes("name: '@local/dsh-personal-agent/guard.js'"),
-      'preset-manager mounts the dispatch guard',
+      coordinator.body.includes("name: '@local/dsh-personal-agent/guard.js'"),
+      'preset-coordinator mounts the dispatch guard',
     )
   }
 
@@ -237,15 +238,15 @@ async function main() {
   // keeps the ordinary creation tool and the worker preset stays untouched.
   const guardBlocks = blocks.filter(block => block.body.includes("'@local/dsh-personal-agent/guard.js'"))
   check(
-    guardBlocks.length === 1 && guardBlocks[0].id === 'preset-manager',
-    'dispatch guard is mounted only by preset-manager',
+    guardBlocks.length === 1 && guardBlocks[0].id === 'preset-coordinator',
+    'dispatch guard is mounted only by preset-coordinator',
     guardBlocks.map(block => block.id).join(', '),
   )
 
   // The guard hides the global creation tool with a scoped, never-admitted
   // shadow and replaces it with a dispatch tool whose Agent preset is fixed.
   // Exercised against a fake tool registry so a missing registration or a
-  // passthrough `agent_preset` fails the bundle check instead of the manager at
+  // passthrough `agent_preset` fails the bundle check instead of the coordinator at
   // runtime.
   check(guard.name === 'dispatch-guard', 'guard exports a plugin name', String(guard.name))
   check(
@@ -285,7 +286,7 @@ async function main() {
   if (dispatch !== undefined) {
     const agent = { id: 'session-m', session: { header: { cwd: '/work' } } }
     const signal = new AbortController().signal
-    const output = await dispatch.execute({ prompt: 'brief', title: 'piece' }, { agent, signal })
+    const output = await dispatch.execute({ prompt: 'brief', cwd: '/repo', title: 'piece' }, { agent, signal })
     check(output.status === 'accepted' && output.session_id === 'session-w1', 'dispatch passes the creation result through', String(output.status))
     check(
       guardCalls.length === 1
@@ -300,14 +301,136 @@ async function main() {
     )
     let rejectedPreset = false
     try {
-      await dispatch.execute({ prompt: 'brief', agent_preset: 'manager' }, { agent, signal })
+      await dispatch.execute({ prompt: 'brief', cwd: '/repo', agent_preset: 'coordinator' }, { agent, signal })
     } catch (_error) {
       rejectedPreset = true
     }
     check(rejectedPreset, 'dispatch rejects a caller-supplied agent_preset')
+    const rejection = async args => {
+      try {
+        await dispatch.execute(args, { agent, signal })
+        return ''
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error)
+      }
+    }
+    check(
+      (await rejection({ prompt: 'brief', title: 'piece' })).includes('must be a string'),
+      'dispatch requires an explicit cwd',
+    )
+    check(
+      (await rejection({ prompt: 'brief', cwd: 'repo' })).includes('absolute path'),
+      'dispatch rejects a relative cwd',
+    )
+    check(
+      (await rejection({ prompt: 'brief', cwd: '/work/deepseek-harness/super-workspace' })).includes('Super Workspace'),
+      'dispatch refuses the Super Workspace shell as cwd',
+    )
   }
-  for (const file of ['prompt/manager.md', 'prompt/manager.zh.md']) {
+  for (const file of ['prompt/coordinator.md', 'prompt/coordinator.zh.md']) {
     check(readFileSync(resolve(ROOT, file), 'utf8').includes('dispatch_worker'), `${file} names dispatch_worker`)
+  }
+
+  // Worker preset: the delegation rows are what let a worker fan a long brief
+  // out to subagents; personal and coordinator must stay without them.
+  const worker = blocks.find(block => block.id === 'preset-worker')
+  check(Boolean(worker), 'preset-worker is declared')
+  if (worker) {
+    const needed = ['tool-subagent-control', 'tool-subagent', 'tool-subagent-fork']
+    const missing = needed.filter(id => !worker.body.includes(`- id: ${id}`))
+    check(
+      missing.length === 0 && worker.body.includes('toolName: subagent_fork'),
+      'preset-worker mounts the delegation group',
+      missing.join(', '),
+    )
+  }
+  for (const id of ['preset-personal', 'preset-coordinator']) {
+    const block = blocks.find(candidate => candidate.id === id)
+    check(block !== undefined && !block.body.includes('dsh-tool-subagent'), `${id} mounts no subagent tools`)
+  }
+
+  // Team mode is a per-Session selection, so the bundle flips it from a host
+  // row, once, for worker Sessions only. Exercised against a stub context: a
+  // missing flip leaves every worker task board closed, and a flip for the
+  // wrong preset would turn Team tools on in the user-facing Session.
+  check(team.name === 'worker-team-mode', 'team plugin exports a name', String(team.name))
+  check(
+    Array.isArray(team.inject) && ['agentPresets', 'agentTeams', 'subagents'].every(name => team.inject.includes(name)),
+    'team injects agentPresets, agentTeams and subagents',
+    String(team.inject),
+  )
+  check(team.WORKER_PRESET === 'worker', 'team targets the worker preset', String(team.WORKER_PRESET))
+  const teamCalls = []
+  let teamListener
+  const teamCtx = {
+    on(event, listener) {
+      if (event === 'agent/created') teamListener = listener
+    },
+    subagents: { rootOf: agent => agent.root ?? agent },
+    agentPresets: { presetForSession: session => session.preset },
+    agentTeams: {
+      isEnabled: () => false,
+      async setEnabled(_agent, value) {
+        teamCalls.push(value)
+      },
+    },
+  }
+  team.apply(teamCtx)
+  check(typeof teamListener === 'function', 'team subscribes to agent/created')
+  if (typeof teamListener === 'function') {
+    const workerAgent = { id: 'session-w', session: { preset: 'worker' } }
+    workerAgent.root = workerAgent
+    await teamListener({ agent: workerAgent })
+    check(
+      teamCalls.length === 1 && teamCalls[0] === true,
+      'team enables Team mode for a worker root Session',
+      JSON.stringify(teamCalls),
+    )
+    const personalAgent = { id: 'session-p', session: { preset: 'personal' } }
+    personalAgent.root = personalAgent
+    await teamListener({ agent: personalAgent })
+    const childAgent = { id: 'session-c', root: workerAgent, session: { preset: 'worker' } }
+    await teamListener({ agent: childAgent })
+    check(teamCalls.length === 1, 'team skips personal and child Sessions', JSON.stringify(teamCalls))
+    let failedListener
+    let rejected = false
+    team.apply({
+      on(event, listener) {
+        if (event === 'agent/created') failedListener = listener
+      },
+      subagents: teamCtx.subagents,
+      agentPresets: teamCtx.agentPresets,
+      agentTeams: {
+        isEnabled: () => false,
+        async setEnabled() {
+          throw new Error('denied')
+        },
+      },
+    })
+    const warn = console.warn
+    console.warn = () => {}
+    try {
+      await failedListener({ agent: workerAgent })
+    } catch (_error) {
+      rejected = true
+    } finally {
+      console.warn = warn
+    }
+    check(!rejected, 'team warns instead of failing Session creation')
+  }
+  const yamlText = readFileSync(resolve(ROOT, 'cordis.patch.yml'), 'utf8')
+  const teamRowCount = (yamlText.match(/name: '@local\/dsh-personal-agent\/team\.js'/gu) ?? []).length
+  check(teamRowCount === 1, 'worker Team mode is mounted once at bundle level', String(teamRowCount))
+  const nestedTeamRow = /^ {10}- id: worker-team-mode$/mu.test(yamlText)
+  check(!nestedTeamRow, 'no preset mounts the worker Team mode row itself')
+
+  for (const file of ['prompt/handbook.md', 'prompt/handbook.zh.md', 'prompt/coordinator.md', 'prompt/coordinator.zh.md']) {
+    const text = readFileSync(resolve(ROOT, file), 'utf8')
+    check(text.includes('super-workspace') && text.includes('cwd'), `${file} carries the dispatch cwd rule`)
+  }
+  for (const file of ['prompt/worker.md', 'prompt/worker.zh.md']) {
+    const text = readFileSync(resolve(ROOT, file), 'utf8')
+    check(text.includes('super-workspace') && text.includes('subagent'), `${file} carries its working-directory and subagent rules`)
   }
 
   // The sidebar panel only reaches the browser when the Loader row is named by
@@ -323,6 +446,9 @@ async function main() {
   const guardExport = manifest.exports?.['./guard.js']
   check(typeof guardExport === 'string' && existsSync(resolve(ROOT, guardExport)), 'manifest ./guard.js export exists', guardExport ?? '(missing)')
   check((manifest.files ?? []).includes('guard.js'), 'manifest ships guard.js')
+  const teamExport = manifest.exports?.['./team.js']
+  check(typeof teamExport === 'string' && existsSync(resolve(ROOT, teamExport)), 'manifest ./team.js export exists', teamExport ?? '(missing)')
+  check((manifest.files ?? []).includes('team.js'), 'manifest ships team.js')
 
   if (process.argv.includes('--handbook')) {
     for (const block of blocks) {

@@ -2,8 +2,8 @@
 
 ## 插件文档（随 bundle 安装）
 
-- [DETAIL.md](DETAIL.md) — 三个预设（个人助理 / 工作会话 / 组长）的插件详情（英文）。
-- [DETAIL.zh.md](DETAIL.zh.md) — 三个预设（个人助理 / 工作会话 / 组长）的插件详情（中文）。
+- [DETAIL.md](DETAIL.md) — 三个预设（个人助理 / 工作会话 / Coordinator）的插件详情（英文）。
+- [DETAIL.zh.md](DETAIL.zh.md) — 三个预设（个人助理 / 工作会话 / Coordinator）的插件详情（中文）。
 
 这两份是 `package.json` 的 `files` 明确包含的详情页，会随插件一起安装。
 

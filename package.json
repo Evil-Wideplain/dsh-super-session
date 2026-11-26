@@ -13,7 +13,8 @@
     "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json",
     "./icon": "./icon.svg",
-    "./guard.js": "./guard.js"
+    "./guard.js": "./guard.js",
+    "./team.js": "./team.js"
   },
   "files": [
     "index.js",
@@ -27,7 +28,8 @@
     "docs/DETAIL.zh.md",
     "icon.svg",
     "README.md",
-    "guard.js"
+    "guard.js",
+    "team.js"
   ],
   "dsh": {
     "bundle": {

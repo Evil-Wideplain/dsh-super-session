@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "个人助理、工作会话与组长",
-    "description": "三个 Agent 预设：带持久 shell、定时任务、目标与文件交付的个人助理，按简报执行、核验并回报的工作会话，以及管一份目标、派发 worker 的组长；记忆走 profile 的 memory 插件。",
+    "title": "个人助理、工作会话与 Coordinator",
+    "description": "三个 Agent 预设：带持久 shell、定时任务、目标与文件交付的个人助理，按简报执行、核验并回报的工作会话，以及管一份目标、派发 worker 的 Coordinator；记忆走 profile 的 memory 插件。",
     "detail": "docs/DETAIL.zh.md"
   }
 }

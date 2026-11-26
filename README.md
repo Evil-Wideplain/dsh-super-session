@@ -1,6 +1,6 @@
-# 个人助理、工作会话与组长（DSH Agent 预设）
+# 个人助理、工作会话与 Coordinator（DSH Agent 预设）
 
-一个 bundle 提供三个 Agent 预设：**个人助理**（用户直接对话的那个会话，把 DSH Super-agent 的分工/注意力原则和 Muse 的主动性/关系设计合起来）、**工作会话**（主会话按自包含简报派发、干完并核验后回报的执行会话），以及 **组长**（只对派它的 lead 负责、管一份目标、拆解并派 worker、看证据验收的协调者）。
+一个 bundle 提供三个 Agent 预设：**个人助理**（用户直接对话的那个会话，把 DSH Super-agent 的分工/注意力原则和 Muse 的主动性/关系设计合起来）、**工作会话**（主会话按自包含简报派发、干完并核验后回报的执行会话），以及 **Coordinator**（只对派它的 lead 负责、管一份目标、拆解并派 worker、看证据验收的 coordinator 会话）。
 
 - **shell 优先**：文件读写、进程、脚本都走 **持久 shell**，不挂 `read`/`write`/`edit`/`glob`/`grep`。
 - **需要框架状态的能力才挂工具**：后台任务、定时任务、目标、todo、plan mode、结构化提问、Web、文件交付、Office、skill 由预设挂载；worker 会话、长会话/检索、记忆由 Agent profile 的固定组件提供（`session-messaging`、`session-guardian`、`dsh-auto-memory`），预设不重复挂载。
@@ -16,14 +16,15 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
   context.js                   # 预设插件：按 handbookPath 注入手册
   client.js                    # 浏览器端插件：侧边栏「超级会话」入口，直接进固定 id 的那个常驻会话（挂在内置 Super Workspace 里，该工作区分组在侧边栏隐藏）
   index.js                     # Host 半边：开机建好并注册 <Documents>/deepseek-harness/super-workspace、把固定 id 的会话 attach 进去，让 Loader 发现 dsh.client
-  guard.js                     # Host 插件：组长作用域隐藏 create_session_agent，提供固定 agent_preset: worker 的 dispatch_worker
+  guard.js                     # Host 插件：coordinator 作用域隐藏 create_session_agent，提供固定 agent_preset: worker 的 dispatch_worker（cwd 必填，拒绝 Super Workspace 空壳目录）
+  team.js                      # Host 插件：worker 会话创建时打开 Team 模式（team_task_* 与 team:policy），personal / coordinator 保持默认关闭
   prompt/
     handbook.md                # 个人助理手册（英文，默认）
     handbook.zh.md             # 个人助理手册（中文）
     worker.md                  # 工作会话手册（英文，默认）
     worker.zh.md               # 工作会话手册（中文）
-    manager.md                 # 组长手册（英文，默认）
-    manager.zh.md              # 组长手册（中文）
+    coordinator.md             # coordinator 手册（英文，默认）
+    coordinator.zh.md          # coordinator 手册（中文）
   locale/{en,zh}.json          # 插件市场显示名/描述
   docs/
     DETAIL.md                  # 插件详情页（随包）
@@ -41,12 +42,12 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 
 > 安装会改变 profile。安装或更新后，已有会话继续使用旧预设，**必须新建会话**才能看到新预设；新增预设的声明还要等 DSH 重载后才会出现在列表里。
 
-在 DSH 里打开 **插件 / Plugins → 添加插件（Add plugin）→ 选择本地目录**，选中仓库根目录 `C:\Code\super_agent`。安装完成后，新建会话，预设列表里会有 **个人助理（Personal Agent）**、**工作会话（Worker）** 和 **组长（Coordinator）** 三个可选项：日常对话选个人助理；主会话用 `create_session_agent` 派活时选工作会话（`agent_preset: worker`）；一个目标要拆给多个 worker 时派一个组长（`agent_preset: manager`）。
+在 DSH 里打开 **插件 / Plugins → 添加插件（Add plugin）→ 选择本地目录**，选中仓库根目录 `C:\Code\super_agent`。安装完成后，新建会话，预设列表里会有 **个人助理（Personal Agent）**、**工作会话（Worker）** 和 **Coordinator** 三个可选项：日常对话选个人助理；主会话用 `create_session_agent` 派活时选工作会话（`agent_preset: worker`）；一个目标要拆给多个 worker 时派一个 coordinator（`agent_preset: coordinator`）。
 
 如果你用 agent 安装，给它这个指令：
 
 ```text
-用 plugin_manager 的 install_bundle，target 设为 C:\Code\super_agent，安装后列出 bundle 与 preset-personal、preset-worker、preset-manager 的激活状态。
+用 plugin_manager 的 install_bundle，target 设为 C:\Code\super_agent，安装后列出 bundle 与 preset-personal、preset-worker、preset-coordinator 的激活状态。
 ```
 
 安装器会把包 link 到 profile 的 `node_modules`，所以 `cordis.patch.yml` 里的 `@local/dsh-personal-agent` 能解析到本目录。**不要**手动改 profile 的 `package.json` 或跑 pnpm。
@@ -71,7 +72,7 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 
 - **手册主体照抄 Muse**：手册按顺序逐段来自 Muse 的 system prompt（`docs/muse-system-prompt.md`）——Who You Are 与七条价值观（Truth / Beauty / Respect / Fun / Connection / Curiosity / Due Diligence），Thoughtful follow-through、Who You Work For、Discretion and Alignment、External Parties、How You Work、How You Evolve、Proactivity、Personalization 与 Memory、The User's Relationships、Contextual Awareness、Managing Your Conversation Context 与 Keeping Track of Active Work、Writing Style（含 Final Response Brevity、Richer Responses）、Tools、Subagents、Scheduled Work、Runtime Files、Filesystem、Security（含 Anti-Phishing）、Safety。措辞不重写，长句、比喻、口气都保留。
 - **只改事实，不改文字**：替换的只有 DSH 与 Muse 产品不同的事实——工具名（`muse.exec` → `bash` / `pwsh`，`present`，`schedule_*`，`create_session_agent` / `send_session_message`，`todo_write`，`skill`）、运行时路径（`~/docs`、`~/MEMORY.md`、`~/USER.md` → 工作目录、`AGENTS.md`、profile 的 memory 组件）、产品身份（Meta / Muse Spark → DSH 预设 + `persona.prefix`），以及 DSH 没有的界面（Side Chats、Feed、Spaces、widgets、reactions、语音、Sent from / `[whatsapp]` 前缀）。
-- **DSH 专有补充**：Skills 一节（Muse 没有独立 skill 章节）、Worker Sessions 的投递机制（`create_session_agent`，brief 要自包含，结果用 `$DSH_SESSION_ID` 回报）、`schedule_*` 的校验步骤、`present` 的文件交付规则，以及 First Run、Continuity、Failure and Honesty 三节（Muse 里分散在别处或没有）。
+- **DSH 专有补充**：Skills 一节（Muse 没有独立 skill 章节）、Worker 会话的投递与分发纪律（`create_session_agent`，brief 要自包含，结果用 `$DSH_SESSION_ID` 回报，派活 `cwd` 必须是任务仓库）、`schedule_*` 的校验步骤、`present` 的文件交付规则，以及 First Run、Continuity、Failure and Honesty 三节（Muse 里分散在别处或没有）。
 
 ### 没有照搬的
 
@@ -95,7 +96,7 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 | 文件交付 | `present` |
 | 技能 | `skill`（项目级与用户级技能都默认加载） |
 
-**执行面的工具不在个人助理这里**：`read_image`、`job_output` / `job_list` / `job_kill`、`web_search` / `web_fetch`、Office 三件套都归**工作会话**预设。lead 不亲自看图、跑长命令、查网页、做文档——这些活派 worker 去干，自己只留判断、简报和验收。skill 目录不设限制：全局用户技能和项目级 `.dsh/skills` / `.agents/skills` 都默认加载，项目根按会话当时的 cwd 现算，换工作区就换一套技能；`office` / `office-docx` / `office-xlsx` / `office-pptx` 那四个来自 profile 级的 `dsh-skill-office`，三个预设都有。
+**执行面的工具不在个人助理这里**：`read_image`、`job_output` / `job_list` / `job_kill`、`web_search` / `web_fetch`、Office 三件套都归**工作会话**预设。lead 不亲自看图、跑长命令、查网页、做文档——这些活派 worker 去干，自己只留判断、简报和验收。skill 目录不设限制：全局用户技能和项目级 `.dsh/skills` / `.agents/skills` 都默认加载，项目根按会话当时的 cwd 现算，换工作区就换一套技能；`office` / `office-docx` / `office-xlsx` / `office-pptx` 那四个来自 profile 级的 `dsh-skill-office`，三个预设都有。 `subagent` / `subagent_fork` 与 `send_message` / `list_agents` / `wait_agent` 这套派生工具也只在 worker：lead 不自己派生，跨会话的活走 worker。
 
 bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 就是你那一个常驻会话，点它直接进对话，没有中间页、也没有「新建」按钮。它按一个**固定的会话 id**（`session-super-session`，DSH 接受任意字符串 id）认这个会话，并把它**挂在内置工作区**里。挂工作区是硬性前提：一个还没发过消息的空白会话如果不属于任何工作区，DSH 的对话界面会把输入框换成「选择一个工作区开始」，根本不能打字；所以第一次点传的是 `workspaceId`（`workspaceId` 与 `cwd` 不能同时传，Host 会拒），Host 在同一次调用里把它 attach 进工作区。这个工作区是 `<Documents>\deepseek-harness\super-workspace`（`Documents` 默认是用户主目录下的 `Documents`，被重定向时按系统设置解析），标题 `Super Workspace`，与 DSH 自己的 `default-workspace` 同级；目录、工作区注册，以及旧版本用 `cwd` 建出来的那个固定 id 会话的一次性 attach，都在 **DSH 启动时**由 Host 半边完成（幂等，失败只记一条警告）。这个工作区**不在侧边栏的工作区列表里显示**：DSH 没有「隐藏工作区」的字段或命令，工作区列表又是共享 store（改它会动到真实状态），所以 client 半边只在**展示层**注入一条按树行 `data-row-key="workspace:<id>"` 定位的样式，把这一组连同它的会话行一起去掉，插件卸载时移除样式即恢复；它仍然必须存在，否则空白会话的输入框会变成「选择一个工作区」。面板按路径尾部 `deepseek-harness/super-workspace` 或标题恰好是 `Super Workspace` 认这个工作区，取它的 id 当 attach 目标、取它的路径判断成员身份。第一次点用 **个人助理** 预设把这个固定 id 的会话建出来（标题 `超级会话`），以后每次点都回到它；归档后再点会先取消归档再打开；它还是空白、而记录的预设不是 `personal` 时，会用同一个 id 再 `create` 一次改回 `personal`（已经发过第一轮的会话不动）。
 
@@ -109,9 +110,9 @@ bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 就�
 
 工作会话侧的 Office 三个工具要**先加载 Office skill**（`office`、`office-docx`、`office-xlsx`、`office-pptx`）才会出现；渲染还需要支持图像输入的模型路由和附件服务。个人助理不挂这三个工具，文档的读取、转换、渲染一律派 worker。
 
-**工作会话**预设挂的是**执行面**，不是个人助理那张表的子集：持久 shell、`read_image`、`job_*`、`todo_write`、`create_goal` / `get_goal` / `update_goal`（一轮做不完的简报靠它跨轮次专注同一个目标）、`web_search` / `web_fetch`、Office 三件套、`skill`（扫描全部默认根，`~/.agents/skills` 与仓库自带技能都看得到）。它不挂 `schedule_*`、plan mode、`ask_user_question` 与 `present`——那些留在个人助理，worker 只负责把简报干完并回报。三个预设都不重复挂 profile 的全局工具。
+**工作会话**预设挂的是**执行面**，不是个人助理那张表的子集：持久 shell、`read_image`、`job_*`、`todo_write`、`create_goal` / `get_goal` / `update_goal`（一轮做不完的简报靠它跨轮次专注同一个目标）、`web_search` / `web_fetch`、Office 三件套、`skill`（扫描全部默认根，`~/.agents/skills` 与仓库自带技能都看得到），以及 **delegation 三条**：`subagent`（spawn）、`subagent_fork`（fork）与 subagent control（`send_message` / `list_agents` / `wait_agent`）。它不挂 `schedule_*`、plan mode、`ask_user_question` 与 `present`——那些留在个人助理，worker 只负责把简报干完并回报。三个预设都不重复挂 profile 的全局工具。
 
-**组长**预设只挂协调面：持久 shell（只用来核对 worker 改了什么、跑它说通过的检查）、`create_goal` / `get_goal` / `update_goal`、`todo_write`、`skill`（默认根，与另外两个预设一致）。它不挂 plan mode、`ask_user_question`、`present`、定时任务、`web_*`、`read_image`、`job_*`、Office；`send_session_message` 来自 profile 的 `session-messaging`。派 worker 用本 bundle 的 `guard.js` 在组长作用域注册的 `dispatch_worker`：它的 Agent 预设固定为 `worker`；profile 的全局 `create_session_agent` 在组长作用域被隐藏，不能用来创建 `personal` 或第二个 `manager`。这两步都是运行时拦截，不是手册约定。
+**Coordinator** 预设只挂协调面：持久 shell（只用来核对 worker 改了什么、跑它说通过的检查）、`create_goal` / `get_goal` / `update_goal`、`todo_write`、`skill`（默认根，与另外两个预设一致）。它不挂 plan mode、`ask_user_question`、`present`、定时任务、`web_*`、`read_image`、`job_*`、Office；`send_session_message` 来自 profile 的 `session-messaging`。派 worker 用本 bundle 的 `guard.js` 在 coordinator 作用域注册的 `dispatch_worker`：它的 Agent 预设固定为 `worker`；profile 的全局 `create_session_agent` 在 coordinator 作用域被隐藏，不能用来创建 `personal` 或第二个 `coordinator`。这两步都是运行时拦截，不是手册约定。 而 `dispatch_worker` 的 `cwd` 是必填参数：每次派活都要显式给出任务所属仓库的绝对路径（例如 `C:\Code\super_agent`），Super Workspace 空壳目录会被直接拒绝。
 
 Agent profile 里固化了以下组件，它们提供**全局工具**；不由本预设挂载：
 
@@ -122,18 +123,20 @@ Agent profile 里固化了以下组件，它们提供**全局工具**；不由�
 | `session-guardian`（session-query 组） | `session_search`、`session_event_search`、`session_trace`、`session_event_trace`、`session_event_read` |
 | `dsh-auto-memory` | `memory_write`、`memory_read`、`memory_list`、`memory_search`、`memory_delete`、`memory_delete_all`、`memory_prune` |
 
-> 唯一的例外是组长：`guard.js` 在 `manager` 作用域隐藏上面这张表里的 `create_session_agent`，换成固定 `agent_preset: worker` 的 `dispatch_worker`；profile 里的原工具本身不改，personal / worker 仍照常使用。
+> 唯一的例外是 coordinator：`guard.js` 在 `coordinator` 作用域隐藏上面这张表里的 `create_session_agent`，换成固定 `agent_preset: worker` 的 `dispatch_worker`；profile 里的原工具本身不改，personal / worker 仍照常使用。 `dispatch_worker` 与 `create_session_agent` 的区别还有一点：`dispatch_worker` 强制显式 `cwd`，不再回落到调用方的工作目录。
 
 三个预设都**不挂载**：`read` / `write` / `edit` / `glob` / `grep` / `apply_patch`、`subagent` / `subagent_fork` / `workflow`。文件读写通过 shell；委派通过 Agent profile 的 `session-messaging` 组件。
 
-worker 会话是独立会话，用 **工作会话** 预设启动（`create_session_agent` 的 `agent_preset: worker`），不继承你的上下文、也不共享你的记忆。只传任务真正需要的上下文；结果让它用 `send_session_message` 发回你的会话 id。
+worker 会话是独立会话，用 **工作会话** 预设启动（`create_session_agent` 的 `agent_preset: worker`），不继承你的上下文、也不共享你的记忆。只传任务真正需要的上下文；结果让它用 `send_session_message` 发回你的会话 id。 worker 自己还能再派生 subagent（`subagent` / `subagent_fork`），并用共享任务板（`team_task_*`）协调队友：bundle 的 `team.js` 在 worker 会话创建时把 Team 模式打开，personal / coordinator 不受影响。深度受 Host 的 `subagent.maxDepth` 限制，默认 1 层——队友不能再往下派生。
 
-组长会话也走 `create_session_agent`，`agent_preset: manager`：给它一份目标、约束和你的会话 id，它自己拆解、派 worker、验收证据，再把结果报回你。一个目标只派一个组长；它不找用户，也只往下派一层 worker——这一步由 `guard.js` 在运行时强制：组长的工具面没有 `create_session_agent`，只有固定 `agent_preset: worker` 的 `dispatch_worker`。
+coordinator 会话也走 `create_session_agent`，`agent_preset: coordinator`：给它一份目标、约束和你的会话 id，它自己拆解、派 worker、验收证据，再把结果报回你。一个目标只派一个 coordinator；它不找用户，也只往下派一层 worker——这一步由 `guard.js` 在运行时强制：coordinator 的工具面没有 `create_session_agent`，只有固定 `agent_preset: worker` 的 `dispatch_worker`。
+
+**派活的落点**：建 worker 或 coordinator 会话时，`cwd` 必须是任务所属的仓库（改这套预设就是 `C:\Code\super_agent`）。**禁止**把 `Super Workspace` 空壳目录（`<Documents>\deepseek-harness\super-workspace`）当作派活目录：它只是常驻会话的注册锚点，里面没有仓库，在那里的工作落在虚空里。跨仓库任务选拥有这次改动的仓库作 `cwd`，其余仓库在简报里写绝对路径；唯一例外是只读地测绘「哪里有哪几个仓库」。
 
 ## 自定义
 
-- **改人格与规则**：人格/名字/语气/回复语言 → 改 `cordis.patch.yml` 的 `persona.prefix`；工作方式与规则 → 改 `prompt/handbook.md`（中英两份一起改）。手册在预设**挂载**时读一次，新建会话只是绑到已挂载的旧树、不会重读，所以改完要**重载 bundle（重启 DSH）**，重载后再新建会话验证；`link:` 安装不必重新"安装"。
-- **切换手册语言**：个人助理默认读 `prompt/handbook.md`，工作会话默认读 `prompt/worker.md`，组长默认读 `prompt/manager.md`；要中文，给对应行（`personal-handbook` / `worker-handbook` / `manager-handbook`）加 `config.handbookPath: ./prompt/handbook.zh.md`、`./prompt/worker.zh.md` 或 `./prompt/manager.zh.md`。手册同样在挂载时读一次，改完同样要重载 bundle（重启 DSH）再新建会话。
+- **改人格与规则**：人格/名字/语气/回复语言 → 改 `cordis.patch.yml` 的 `persona.prefix`；工作方式与规则 → 改 `prompt/handbook.md`（中英两份一起改）。手册在预设**挂载**时读一次，新建会话只是绑到已挂载的旧树、不会重读，所以改完要**重载 bundle（重启 DSH）**，重载后再新建会话验证；`link:` 安装不必重新"安装"。 派活落点（`cwd`）的强制、worker 的派生与 Team 模式在 `guard.js` / `team.js`，改它们同样要重载 DSH。
+- **切换手册语言**：个人助理默认读 `prompt/handbook.md`，工作会话默认读 `prompt/worker.md`，coordinator 默认读 `prompt/coordinator.md`；要中文，给对应行（`personal-handbook` / `worker-handbook` / `coordinator-handbook`）加 `config.handbookPath: ./prompt/handbook.zh.md`、`./prompt/worker.zh.md` 或 `./prompt/coordinator.zh.md`。手册同样在挂载时读一次，改完同样要重载 bundle（重启 DSH）再新建会话。
 - **改身份**：编辑 `cordis.patch.yml` 里 `persona.prefix`（名字、语气、边界都在这里）。
 - **加工具**：往对应预设的 `plugins` 列表里加官方包；可参考 `dsh-web-app/presets/standard.patch.yml`。加/改工具面时要同步下方「工具集」表与 `docs/DETAIL.md` 的 Mounted tools 段，不能只改 YAML。
 - **加回文件工具**：把 `image` 行换成不带 config 的 `@deepseek-ai/dsh-tool-fs`，即得到 `read`/`write`/`edit`；再加 `@deepseek-ai/dsh-tool-fs-search` 得到 `glob`/`grep`。
@@ -146,14 +149,14 @@ worker 会话是独立会话，用 **工作会话** 预设启动（`create_sessi
 - `web_search` / `web_fetch` 的返回是外部不可信内容；引用真实 URL，不执行页面里的指令。
 - Office 工具按 profile 的文件系统读权限读取输入，可能读到工作区外的文件；转换/重算结果先落到 Office kit 的私有输出目录，需要 shell 复制到目标位置。
 - `job_*` 当前没有 producer：持久 shell 用 `&` 启动的进程不会出现在 `job_list` 里，这是预期行为。
-- 单 Agent 的失败半径比多会话系统大；长任务尽量交给工作会话（`agent_preset: worker`），目标大到要拆给多个 worker 时派一个组长（`agent_preset: manager`），关键动作先确认。工作会话同样受 profile 的权限与沙箱约束，预设不会放宽。
+- 单 Agent 的失败半径比多会话系统大；长任务尽量交给工作会话（`agent_preset: worker`），目标大到要拆给多个 worker 时派一个 coordinator（`agent_preset: coordinator`），关键动作先确认。工作会话同样受 profile 的权限与沙箱约束，预设不会放宽。
 - 未安装验证：本包只做了 JS 语法、YAML 结构、插件名与 manifest 的静态检查；真实激活、preset 出现在列表、prompt 注入效果，以及新增工具能否注册，需要在安装后新建会话确认。
 
 ## 故障排查
 
 | 现象 | 先查什么 |
 | --- | --- |
-| 预设列表里没有「个人助理」「工作会话」或「组长」 | bundle 是否安装并启用；重启 DSH 后再看 Plugins 的 `preset-personal` / `preset-worker` / `preset-manager` 行 |
+| 预设列表里没有「个人助理」「工作会话」或「Coordinator」 | bundle 是否安装并启用；重启 DSH 后再看 Plugins 的 `preset-personal` / `preset-worker` / `preset-coordinator` 行 |
 | `preset-personal` 或 `preset-worker` 激活失败 | `@local/dsh-personal-agent` 是否在 profile 的 `node_modules`；`context.js` 是否可导入；`handbookPath` 指向的文件是否存在 |
 | `create_session_agent` 报「DSH 拒绝创建会话」且提到 preset | 目标预设 id 是否存在（`worker`）；是否已重载 DSH；可临时省掉 `agent_preset` 用默认预设派发 |
 | 记忆搜不到或写不进 | Agent profile 的 `dsh-auto-memory` 是否启用；写入前先 `memory_search`，避免重复 |
@@ -168,7 +171,7 @@ worker 会话是独立会话，用 **工作会话** 预设启动（`create_sessi
 
 ## 卸载
 
-在 **插件 / Plugins** 里移除 bundle（市场标题为「个人助理、工作会话与组长」），或在 agent 里调用 `plugin_manager` 的 `remove_bundle`，target 用列表里的 bundle 标识。移除后三个预设都会从列表消失。记忆由 Agent profile 的 `dsh-auto-memory` 保存，卸载 bundle 不会删除；需要时用 `memory_delete` 清理。
+在 **插件 / Plugins** 里移除 bundle（市场标题为「个人助理、工作会话与 Coordinator」），或在 agent 里调用 `plugin_manager` 的 `remove_bundle`，target 用列表里的 bundle 标识。移除后三个预设都会从列表消失。记忆由 Agent profile 的 `dsh-auto-memory` 保存，卸载 bundle 不会删除；需要时用 `memory_delete` 清理。
 
 ## 参考资料
 
