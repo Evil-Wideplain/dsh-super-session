@@ -23,7 +23,7 @@
  * Failures only warn: a worker that cannot enable Team mode must still be
  * created and do its brief.
  *
- * @module @local/dsh-personal-agent/team
+ * @module @evil-wideplain/dsh-super-session/team
  */
 
 /** Plugin name shown by the Loader. */
@@ -48,7 +48,7 @@ export function apply(ctx) {
       if (ctx.agentTeams.isEnabled(agent)) return
       await ctx.agentTeams.setEnabled(agent, true, signal)
     } catch (error) {
-      console.warn('[dsh-personal-agent] could not enable Agent Teams for a worker session:', error)
+      console.warn('[dsh-super-session] could not enable Agent Teams for a worker session:', error)
     }
   })
 }

@@ -1,9 +1,9 @@
-# 个人助理、工作会话与 Coordinator（DSH Agent 预设）
+# Super Session（个人助理 / 工作会话 / Coordinator 预设）
 
 一个 bundle 提供三个 Agent 预设：**个人助理**（用户直接对话的那个会话，把 DSH Super-agent 的分工/注意力原则和 Muse 的主动性/关系设计合起来）、**工作会话**（主会话按自包含简报派发、干完并核验后回报的执行会话），以及 **Coordinator**（只对派它的 lead 负责、管一份目标、拆解并派 worker、看证据验收的 coordinator 会话）。
 
 - **shell 优先**：文件读写、进程、脚本都走 **持久 shell**，不挂 `read`/`write`/`edit`/`glob`/`grep`。
-- **需要框架状态的能力才挂工具**：后台任务、定时任务、目标、todo、plan mode、结构化提问、Web、文件交付、Office、skill 由预设挂载；worker 会话、长会话/检索、记忆由 Agent profile 的固定组件提供（`session-messaging`、`session-guardian`、`dsh-auto-memory`），预设不重复挂载。
+- **需要框架状态的能力才挂工具**：后台任务、定时任务、目标、todo、plan mode、结构化提问、Web、文件交付、Office、skill 由预设挂载；worker 会话、长会话/检索由本 bundle 的依赖 `session-messaging` / `session-guardian` 提供（bundle 自带它们的装载行，profile 已单独启用时让位），记忆仍由 profile 的 `dsh-auto-memory` 提供。
 - **记忆只走组件**：不注入 `SOUL.md` / `USER.md` / `MEMORY.md` 等运行时文件；耐久信息用 Agent profile 的 `memory_*` 组件，只有一套记忆。
 - **不是** Router/Worker 系统，也**不是**另一个 coding agent；编码只是它能力的一部分。
 
@@ -42,7 +42,26 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 
 > 安装会改变 profile。安装或更新后，已有会话继续使用旧预设，**必须新建会话**才能看到新预设；新增预设的声明还要等 DSH 重载后才会出现在列表里。
 
-在 DSH 里打开 **插件 / Plugins → 添加插件（Add plugin）→ 选择本地目录**，选中仓库根目录 `C:\Code\super_agent`。安装完成后，新建会话，预设列表里会有 **个人助理（Personal Agent）**、**工作会话（Worker）** 和 **Coordinator** 三个可选项：日常对话选个人助理；主会话用 `create_session_agent` 派活时选工作会话（`agent_preset: worker`）；一个目标要拆给多个 worker 时派一个 coordinator（`agent_preset: coordinator`）。
+在 DSH 里打开 **插件 / Plugins → 添加插件（Add plugin）→ 选择本地目录**，选中仓库根目录 `C:\Code\super_agent`。安装完成后，新建会话，预设列表里会有 **Super Session**、**Worker** 和 **Coordinator** 三个可选项（依次是个人助理、工作会话与协调者）：日常对话选 Super Session；主会话用 `create_session_agent` 派活时选 Worker（`agent_preset: worker`）；一个目标要拆给多个 worker 时派一个 Coordinator（`agent_preset: coordinator`）。
+
+### 依赖插件：装一个 bundle，带上两个插件
+
+`package.json` 的 `dependencies` 已经 pin 了 `session-messaging` 与 `session-guardian`（与当前 profile 运行的 commit 一致）。bundle 自己也复制了它们的装载行（id 前缀 `bundled-`）：profile 没有单独启用同名 bundle 时由这些行挂载，已单独启用时它们按 `profileContext.startedBundles` 自动禁用，**不会重复注册服务**。装好依赖后，`send_session_message`、`create_session_agent`、`dispatch_worker`、`session_search` 等工具就直接可用（临时 profile 已端到端验证）。
+
+三个必须知道的前提：
+
+- **git 依赖在当前 DSH（pnpm 11）上不能自动安装**：pnpm 11 默认拒绝"依赖的依赖"里出现 git 源（`ERR_PNPM_EXOTIC_SUBDEP`），并且 git 包的 `prepare` 需要 `allowBuilds` 放行（`ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`）。实测必须在 profile 的 `pnpm-workspace.yaml` 里手工加两样：
+
+  ```yaml
+  blockExoticSubdeps: false
+  allowBuilds:
+    "session-messaging@git+https://github.com/Evil-Wideplain/session-messaging.git": true
+    "session-guardian@git+https://github.com/Evil-Wideplain/session-guardian.git": true
+  ```
+
+  注意：pnpm 报错里示例的 `...@https://codeload.github.com/...tar.gz/<commit>` 键实测**不生效**，要用上面这种仓库形式；GUI 的构建审批写入的是报错示例那种键，所以也救不了 `blockExoticSubdeps`（它没有任何自动开关）。因此 **"装一次就全自动"用 git 依赖做不到**。真正的零手工只有两条路：把两个插件发布到 npm（tarball 带 `lib/`、去掉 `prepare`），或把成品以 `file:` 目录随本包 vendoring（实测 `file:` 子依赖不被 `blockExoticSubdeps` 拦）。只把 `lib/` 提交进那两个仓库但保留 `prepare`，仍然会要求 `allowBuilds`。
+- **本地目录安装是 `link:`，不会装依赖**：GUI 选本地目录时安装器 link 本包，`dependencies` 不会落地。本机自用没问题（两个插件本来就在 profile 里）；换一台干净机器请用 Git / 市场安装，或先单独安装这两个插件。
+- **单独装那两个插件也可以**：`bundled-` 行会把自己禁用，profile 里那一份继续生效。改配置时，覆盖原 id（`session-messaging`、`session-guardian*`）影响独立安装的那份；覆盖 `bundled-*` id 影响 bundle 自带的那份。
 
 如果你用 agent 安装，给它这个指令：
 
@@ -50,7 +69,7 @@ C:\Code\super_agent\           # 仓库根目录就是 bundle 根目录
 用 plugin_manager 的 install_bundle，target 设为 C:\Code\super_agent，安装后列出 bundle 与 preset-personal、preset-worker、preset-coordinator 的激活状态。
 ```
 
-安装器会把包 link 到 profile 的 `node_modules`，所以 `cordis.patch.yml` 里的 `@local/dsh-personal-agent` 能解析到本目录。**不要**手动改 profile 的 `package.json` 或跑 pnpm。
+安装器会把包 link 到 profile 的 `node_modules`，所以 `cordis.patch.yml` 里的 `@evil-wideplain/dsh-super-session` 能解析到本目录。**不要**手动改 profile 的 `package.json` 或跑 pnpm；唯一需要手改的是上面「依赖插件」里那两行 `pnpm-workspace.yaml` 设置（仅 git 安装时需要）。
 
 ## 首次使用
 
@@ -102,7 +121,7 @@ bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 就�
 
 **残留风险**：它现在是 `Super Workspace` 的普通成员，所以在它还是空白（一轮都没发过）的这段时间里，如果你在那个工作区里点普通「新建会话」，DSH 会**复用它**并改挂当前默认预设（`standard`）。点开面板会改回 `personal`，但只在那第一轮还没发出去时有效；一旦那一轮发出去了，预设就锁死了。这个窗口没有更干净的关法：DSH 只把 `turn/start` 当作「不再是空白」，没有别的接口能让它提前脱离可复用状态。旧版本在同一工作区里用别的 id 建过的会话不再被这个入口打开，它作为那个工作区的普通会话留着，历史不丢。找不到工作区时它不猜路径，直接提示「重启 DSH 后会自动建好」并给一个重试按钮；固定会话存在但还没挂进工作区时提示「重启 DSH 后会自动挂好」。
 
-面板要出现在侧边栏，`cordis.patch.yml` 里那条 client 行的 `name` 必须写成**裸包名** `@local/dsh-personal-agent`：客户端扫描器只认包名（或 `@scope/名`），它把名字解析到包根，再读包根旁边的 `./client` 导出。写成子路径（例如 `@local/dsh-personal-agent/context.js`）或 `file:` URL 都会被当成非 client 行静默跳过，侧边栏什么都不显示，也不会报错。
+面板要出现在侧边栏，`cordis.patch.yml` 里那条 client 行的 `name` 必须写成**裸包名** `@evil-wideplain/dsh-super-session`：客户端扫描器只认包名（或 `@scope/名`），它把名字解析到包根，再读包根旁边的 `./client` 导出。写成子路径（例如 `@evil-wideplain/dsh-super-session/context.js`）或 `file:` URL 都会被当成非 client 行静默跳过，侧边栏什么都不显示，也不会报错。
 
 `working_directory` 由 Web 的 host 层提供给所有预设，**不需要也不应该**在预设里再挂一次；重复挂载会注册同名工具。
 
@@ -112,9 +131,9 @@ bundle 还带一个浏览器端插件：侧边栏面板行 **超级会话** 就�
 
 **工作会话**预设挂的是**执行面**，不是个人助理那张表的子集：持久 shell、`read_image`、`job_*`、`todo_write`、`create_goal` / `get_goal` / `update_goal`（一轮做不完的简报靠它跨轮次专注同一个目标）、`web_search` / `web_fetch`、Office 三件套、`skill`（扫描全部默认根，`~/.agents/skills` 与仓库自带技能都看得到），以及 **delegation 三条**：`subagent`（spawn）、`subagent_fork`（fork）与 subagent control（`send_message` / `list_agents` / `wait_agent`）。它不挂 `schedule_*`、plan mode、`ask_user_question` 与 `present`——那些留在个人助理，worker 只负责把简报干完并回报。三个预设都不重复挂 profile 的全局工具。
 
-**Coordinator** 预设只挂协调面：持久 shell（只用来核对 worker 改了什么、跑它说通过的检查）、`create_goal` / `get_goal` / `update_goal`、`todo_write`、`skill`（默认根，与另外两个预设一致）。它不挂 plan mode、`ask_user_question`、`present`、定时任务、`web_*`、`read_image`、`job_*`、Office；`send_session_message` 来自 profile 的 `session-messaging`。派 worker 用本 bundle 的 `guard.js` 在 coordinator 作用域注册的 `dispatch_worker`：它的 Agent 预设固定为 `worker`；profile 的全局 `create_session_agent` 在 coordinator 作用域被隐藏，不能用来创建 `personal` 或第二个 `coordinator`。这两步都是运行时拦截，不是手册约定。 而 `dispatch_worker` 的 `cwd` 是必填参数：每次派活都要显式给出任务所属仓库的绝对路径（例如 `C:\Code\super_agent`），Super Workspace 空壳目录会被直接拒绝。
+**Coordinator** 预设只挂协调面：持久 shell（只用来核对 worker 改了什么、跑它说通过的检查）、`create_goal` / `get_goal` / `update_goal`、`todo_write`、`skill`（默认根，与另外两个预设一致）。它不挂 plan mode、`ask_user_question`、`present`、定时任务、`web_*`、`read_image`、`job_*`、Office；`send_session_message` 来自本 bundle 声明并挂载的 `session-messaging`（profile 已单独启用同名 bundle 时让位）。派 worker 用本 bundle 的 `guard.js` 在 coordinator 作用域注册的 `dispatch_worker`：它的 Agent 预设固定为 `worker`；profile 的全局 `create_session_agent` 在 coordinator 作用域被隐藏，不能用来创建 `personal` 或第二个 `coordinator`。这两步都是运行时拦截，不是手册约定。 而 `dispatch_worker` 的 `cwd` 是必填参数：每次派活都要显式给出任务所属仓库的绝对路径（例如 `C:\Code\super_agent`），Super Workspace 空壳目录会被直接拒绝。
 
-Agent profile 里固化了以下组件，它们提供**全局工具**；不由本预设挂载：
+以下**全局工具**由 `session-messaging` / `session-guardian` 提供。本 bundle 声明它们为依赖并自带装载行（profile 已单独启用同名 bundle 时让位）；`dsh-auto-memory` 仍由 profile 提供：
 
 | 组件 | 提供的全局工具 |
 | --- | --- |
@@ -140,7 +159,7 @@ coordinator 会话也走 `create_session_agent`，`agent_preset: coordinator`：
 - **改身份**：编辑 `cordis.patch.yml` 里 `persona.prefix`（名字、语气、边界都在这里）。
 - **加工具**：往对应预设的 `plugins` 列表里加官方包；可参考 `dsh-web-app/presets/standard.patch.yml`。加/改工具面时要同步下方「工具集」表与 `docs/DETAIL.md` 的 Mounted tools 段，不能只改 YAML。
 - **加回文件工具**：把 `image` 行换成不带 config 的 `@deepseek-ai/dsh-tool-fs`，即得到 `read`/`write`/`edit`；再加 `@deepseek-ai/dsh-tool-fs-search` 得到 `glob`/`grep`。
-- **改包名**：如果重命名 `@local/dsh-personal-agent`，同步改 `personal-handbook` 行与任何引用该包名的地方。
+- **改包名**：如果重命名 `@evil-wideplain/dsh-super-session`，同步改 `personal-handbook` 行与任何引用该包名的地方。
 
 ## 安全与限制
 
@@ -150,17 +169,18 @@ coordinator 会话也走 `create_session_agent`，`agent_preset: coordinator`：
 - Office 工具按 profile 的文件系统读权限读取输入，可能读到工作区外的文件；转换/重算结果先落到 Office kit 的私有输出目录，需要 shell 复制到目标位置。
 - `job_*` 当前没有 producer：持久 shell 用 `&` 启动的进程不会出现在 `job_list` 里，这是预期行为。
 - 单 Agent 的失败半径比多会话系统大；长任务尽量交给工作会话（`agent_preset: worker`），目标大到要拆给多个 worker 时派一个 coordinator（`agent_preset: coordinator`），关键动作先确认。工作会话同样受 profile 的权限与沙箱约束，预设不会放宽。
-- 未安装验证：本包只做了 JS 语法、YAML 结构、插件名与 manifest 的静态检查；真实激活、preset 出现在列表、prompt 注入效果，以及新增工具能否注册，需要在安装后新建会话确认。
+- 验证范围：`scripts/verify.mjs` 做静态检查；依赖与 bundled 行已在临时 profile 里端到端验证（dump-config、`agentPresets.list()`、工具目录、重复注册）。桌面 profile 仍要重载 DSH、新建会话确认 prompt 注入与工具面。
 
 ## 故障排查
 
 | 现象 | 先查什么 |
 | --- | --- |
 | 预设列表里没有「个人助理」「工作会话」或「Coordinator」 | bundle 是否安装并启用；重启 DSH 后再看 Plugins 的 `preset-personal` / `preset-worker` / `preset-coordinator` 行 |
-| `preset-personal` 或 `preset-worker` 激活失败 | `@local/dsh-personal-agent` 是否在 profile 的 `node_modules`；`context.js` 是否可导入；`handbookPath` 指向的文件是否存在 |
+| `preset-personal` 或 `preset-worker` 激活失败 | `@evil-wideplain/dsh-super-session` 是否在 profile 的 `node_modules`；`context.js` 是否可导入；`handbookPath` 指向的文件是否存在 |
 | `create_session_agent` 报「DSH 拒绝创建会话」且提到 preset | 目标预设 id 是否存在（`worker`）；是否已重载 DSH；可临时省掉 `agent_preset` 用默认预设派发 |
 | 记忆搜不到或写不进 | Agent profile 的 `dsh-auto-memory` 是否启用；写入前先 `memory_search`，避免重复 |
-| 全局工具没出现 | Agent profile 的 `bundles` 是否包含 `dsh-auto-memory`、`session-messaging`、`session-guardian`；重启后再看 |
+| 全局工具没出现 | 本 bundle 的依赖是否装好（`node_modules/session-messaging`、`session-guardian` 有 `lib/`）；git 安装是否放行了构建；`bundled-*` 行是否被 profile 覆盖成 disabled；`dsh-auto-memory` 是否在 profile 的 `bundles` 里；重启后再看 |
+| coordinator 显示 `waiting for sessionMessaging` | 两个依赖没装或没有 `lib/`（git 构建未放行）；本地目录安装是 `link:`，不会装依赖；先按上面的依赖段处理 |
 | 个人助理里没有 `read_image` / `web_*` / `job_*` / Office 工具 | 预期行为：这些工具只挂在**工作会话**预设，派个 worker 去做 |
 | 工作会话里 `read_image` 不可用 | 当前模型是否声明 image 输入；profile 是否挂载附件服务 |
 | `web_search` / `web_fetch` 不可用 | host 的 `web` 服务与 Search/Fetch provider 是否启用（Settings → Web search） |

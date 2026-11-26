@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "Personal Agent, Worker and Coordinator",
-    "description": "Three agent presets: a shell-first personal assistant with schedules, goals and file delivery; a worker preset for briefed, verified delegation; and a coordinator that holds one goal and dispatches workers.",
+    "title": "Super Session",
+    "description": "Three agent presets for DeepSeek Harness: the assistant you talk to, a worker that carries out a brief and reports evidence, and a coordinator that dispatches workers for one goal. Start a new session and pick one; the sidebar row Super Session opens your standing assistant session. Memory comes from the profile's memory plugin; turning the bundle off removes all three presets.",
     "detail": "docs/DETAIL.md"
   }
 }

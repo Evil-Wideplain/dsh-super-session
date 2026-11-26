@@ -10,8 +10,7 @@
  * session's system prompt can be diffed against the repo after a reload
  * instead of guessed at.
  *
- * Only `node:` built-ins: the bundle has no dependencies and this script must
- * not add any.
+ * Only `node:` built-ins: the check itself must not need installed packages.
  *
  * Usage:
  *   node scripts/verify.mjs              # all checks, exit 1 on failure
@@ -118,6 +117,18 @@ function exactPackageName(specifier) {
 }
 
 /**
+ * Value of a `config` scalar in a preset block: the eight-space key under
+ * `config:`, which the row-level six-space `name:` never matches.
+ */
+function configValue(body, key) {
+  const match = body.match(new RegExp(`^ {8}${key}: (.+)$`, 'm'))
+  return match === null ? '' : unquote(match[1])
+}
+
+/** Display name each declared preset must show, keyed by Loader row id. */
+const PRESET_NAMES = { 'preset-personal': 'Super Session', 'preset-worker': 'Worker', 'preset-coordinator': 'Coordinator' }
+
+/**
  * Name of the Loader row that mounts the package for the client scanner.
  *
  * Recognised by its id, so the row can move within the file without the check
@@ -136,6 +147,18 @@ function clientRowName() {
 
 async function main() {
   const manifest = readJson('package.json')
+  for (const [dependency, commit] of [
+    ['session-messaging', '2c604d22985cacf1ed2cbdc25cbf73685ef8e8f6'],
+    ['session-guardian', '448dfd2b4e7e954404011212b19d9e3ad4bffd15'],
+  ]) {
+    const spec = manifest.dependencies?.[dependency] ?? ''
+    check(
+      spec === `git+https://github.com/Evil-Wideplain/${dependency}.git#${commit}`,
+      `manifest pins ${dependency}`,
+      spec || '(missing)',
+    )
+  }
+
   const plugin = await import(pathToFileURL(resolve(ROOT, 'context.js')).href)
   const guard = await import(pathToFileURL(resolve(ROOT, 'guard.js')).href)
   const team = await import(pathToFileURL(resolve(ROOT, 'team.js')).href)
@@ -159,6 +182,36 @@ async function main() {
     const meta = parsed.meta ?? {}
     check(Boolean(meta.title && meta.description && meta.detail), `${locale} has title/description/detail`)
     check(existsSync(resolve(ROOT, meta.detail ?? '')), `${locale} detail page exists`, meta.detail ?? '(unset)')
+    // The card clamps its title to one line, so the title stays a short product
+    // name; a bilingual gloss in parentheses is what the shipped locales never do.
+    check(meta.title === 'Super Session', `${locale} title is the product name`, meta.title ?? '(unset)')
+    check(!/[（(]/.test(meta.title ?? ''), `${locale} title carries no bilingual gloss`, meta.title ?? '(unset)')
+    check((meta.description ?? '').length > 0, `${locale} description is not empty`)
+  }
+
+  // The detail page is one feature image and nothing else: functionality and
+  // usage live in `meta.description` (plugin-details.md: 3, 13, 19).
+  for (const document of ['docs/DETAIL.md', 'docs/DETAIL.zh.md']) {
+    const lines = readFileSync(resolve(ROOT, document), 'utf8').split(/\r?\n/).filter(line => line.trim())
+    check(lines.length === 1 && lines[0].startsWith('!['), `${document} is exactly one image line`, `${lines.length} line(s)`)
+    check(lines.some(line => line.includes('](preview.svg)')), `${document} references preview.svg`)
+  }
+
+  // Both drawings are checked for the shapes the references forbid: text,
+  // stylesheets, scripts, animation, and embedded rasters.
+  for (const [asset, width, height, viewBox] of [
+    ['icon.svg', '36', '36', '0 0 36 36'],
+    ['docs/preview.svg', '640', '300', '0 0 640 300'],
+  ]) {
+    const svg = readFileSync(resolve(ROOT, asset), 'utf8')
+    check(
+      svg.includes(`width="${width}"`) && svg.includes(`height="${height}"`) && svg.includes(`viewBox="${viewBox}"`),
+      `${asset} is a ${width}x${height} canvas`,
+    )
+    check(
+      !/<text|<style|<script|<image|<foreignObject|<animate/.test(svg),
+      `${asset} keeps to geometry: no text, style, script, raster or animation`,
+    )
   }
 
   for (const [english, chinese] of [
@@ -179,10 +232,22 @@ async function main() {
   for (const block of blocks) {
     const pluginName = field(block.body, 'name')
     check(pluginName === '@deepseek-ai/dsh-agent-preset', `${block.id} uses the preset plugin`, pluginName)
+    // A preset name is shown verbatim in every locale — the registry never
+    // translates user-authored metadata — so it is one short English role name.
+    const displayName = configValue(block.body, 'name')
+    const expectedName = PRESET_NAMES[block.id]
+    check(displayName === expectedName, `${block.id} shows the agreed preset name`, displayName || '(missing)')
+    check(!/[一-鿿（(]/.test(displayName), `${block.id} preset name is one English role name`, displayName)
+    const presetDescription = configValue(block.body, 'description')
+    check(
+      presetDescription.length > 0 && !/[一-鿿]/.test(presetDescription),
+      `${block.id} description is a plain English sentence`,
+      presetDescription ? '' : '(missing)',
+    )
     const presetId = field(block.body, 'id')
     check(Boolean(presetId), `${block.id} declares a preset id`, presetId)
     check(
-      block.body.includes("name: '@local/dsh-personal-agent/context.js'"),
+      block.body.includes("name: '@evil-wideplain/dsh-super-session/context.js'"),
       `${block.id} mounts the handbook plugin`,
     )
     const configured = field(block.body, 'handbookPath')
@@ -229,14 +294,14 @@ async function main() {
     const mounted = forbidden.filter(name => coordinator.body.includes(name))
     check(mounted.length === 0, 'preset-coordinator mounts no work or interaction tools', mounted.join(', '))
     check(
-      coordinator.body.includes("name: '@local/dsh-personal-agent/guard.js'"),
+      coordinator.body.includes("name: '@evil-wideplain/dsh-super-session/guard.js'"),
       'preset-coordinator mounts the dispatch guard',
     )
   }
 
   // The guard row must be scoped to the coordinator alone: the personal preset
   // keeps the ordinary creation tool and the worker preset stays untouched.
-  const guardBlocks = blocks.filter(block => block.body.includes("'@local/dsh-personal-agent/guard.js'"))
+  const guardBlocks = blocks.filter(block => block.body.includes("'@evil-wideplain/dsh-super-session/guard.js'"))
   check(
     guardBlocks.length === 1 && guardBlocks[0].id === 'preset-coordinator',
     'dispatch guard is mounted only by preset-coordinator',
@@ -419,10 +484,75 @@ async function main() {
     check(!rejected, 'team warns instead of failing Session creation')
   }
   const yamlText = readFileSync(resolve(ROOT, 'cordis.patch.yml'), 'utf8')
-  const teamRowCount = (yamlText.match(/name: '@local\/dsh-personal-agent\/team\.js'/gu) ?? []).length
+  const teamRowCount = (yamlText.match(/name: '@evil-wideplain\/dsh-super-session\/team\.js'/gu) ?? []).length
   check(teamRowCount === 1, 'worker Team mode is mounted once at bundle level', String(teamRowCount))
   const nestedTeamRow = /^ {10}- id: worker-team-mode$/mu.test(yamlText)
   check(!nestedTeamRow, 'no preset mounts the worker Team mode row itself')
+
+  // The dependencies are only half the job: DSH mounts a bundle's own patch
+  // rows, not its transitive packages. The bundle therefore copies the two
+  // plugins' rows and disables them when the profile already lists the
+  // official bundle, so the same service is never registered twice.
+  const yamlRow = (id) => {
+    const lines = yamlText.split(String.fromCharCode(10))
+    const start = lines.findIndex(line => line.trim() === `- id: ${id}`)
+    if (start < 0) return ''
+    const body = []
+    for (const line of lines.slice(start + 1)) {
+      if (/^\s*- id: /u.test(line)) break
+      body.push(line)
+    }
+    return body.join(String.fromCharCode(10))
+  }
+  for (const [id, name, bundle] of [
+    ['bundled-session-messaging', 'session-messaging', 'session-messaging'],
+    ['bundled-session-creation', 'session-messaging/creation', 'session-messaging'],
+    ['bundled-session-guardian', 'session-guardian', 'session-guardian'],
+    ['bundled-session-guardian-trim', 'session-guardian/trim', 'session-guardian'],
+  ]) {
+    const body = yamlRow(id)
+    check(body !== '', `${id} is declared`)
+    check(
+      body.includes(`name: '${name}'`) || body.includes(`name: ${name}`),
+      `${id} names ${name}`,
+    )
+    check(
+      body.includes(`startedBundles?.includes('${bundle}')`),
+      `${id} yields to a profile that already lists ${bundle}`,
+    )
+  }
+  check(
+    (yamlText.match(/- id: bundled-/gu) ?? []).length === 8,
+    'the bundle carries the two dependencies as eight rows',
+    String((yamlText.match(/- id: bundled-/gu) ?? []).length),
+  )
+  const queryGroup = yamlRow('bundled-session-guardian-session-query')
+  check(queryGroup.includes('group: true'), 'bundled session-query row is a group')
+  check(queryGroup.includes('sessionQuery: true'), 'bundled session-query group isolates sessionQuery')
+  check(
+    yamlText.includes('- id: bundled-session-guardian-session-query-sqlite')
+    && yamlText.includes('- id: bundled-session-guardian-tool-session-query'),
+    'bundled session-query group carries the sqlite and tool rows',
+  )
+  const compaction = yamlRow('bundled-session-guardian-compaction')
+  check(compaction.includes('disabled: true'), 'bundled compaction row stays off like upstream')
+  const messagingYields = (yamlText.match(/startedBundles\?\.includes\('session-messaging'\)/gu) ?? []).length
+  const guardianYields = (yamlText.match(/startedBundles\?\.includes\('session-guardian'\)/gu) ?? []).length
+  check(messagingYields === 2, 'both session-messaging rows carry the yield condition', String(messagingYields))
+  check(guardianYields === 3, 'all enabled session-guardian rows carry the yield condition', String(guardianYields))
+  for (const upstreamId of [
+    'session-messaging',
+    'session-creation',
+    'session-guardian',
+    'session-guardian-session-query',
+    'session-guardian-trim',
+    'session-guardian-compaction',
+  ]) {
+    check(
+      !yamlText.split(String.fromCharCode(10)).map(line => line.trim()).includes(`- id: ${upstreamId}`),
+      `bundled rows do not reuse the upstream id ${upstreamId}`,
+    )
+  }
 
   for (const file of ['prompt/handbook.md', 'prompt/handbook.zh.md', 'prompt/coordinator.md', 'prompt/coordinator.zh.md']) {
     const text = readFileSync(resolve(ROOT, file), 'utf8')

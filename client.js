@@ -34,11 +34,11 @@
  * module it may request; every other DSH client package is off limits, so all
  * styling is local CSS built from host theme tokens and the icon is inline SVG.
  *
- * @module @local/dsh-personal-agent/client
+ * @module @evil-wideplain/dsh-super-session/client
  */
 
 window.__ModuleLoader__.load({
-  id: '@local/dsh-personal-agent',
+  id: '@evil-wideplain/dsh-super-session',
   factory(require) {
     const React = require('react')
     const h = React.createElement

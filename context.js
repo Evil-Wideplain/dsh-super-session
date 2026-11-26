@@ -8,7 +8,7 @@
  * owned by the profile's memory plugin; no preset injects personal files or
  * keeps a second memory store.
  *
- * @module @local/dsh-personal-agent
+ * @module @evil-wideplain/dsh-super-session
  */
 
 import { readFileSync } from 'node:fs'

@@ -1,17 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Personal Agent">
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    Super Session — proposed plugin icon (draft, not installed).
+    One standing conversation that dispatches: a speech bubble with a spark.
+    36x36 canvas, transparent background, no tile, flat gradient only.
+    Body and tail are one silhouette (same fill, no outline).
+  -->
+  <g fill="url(#dsh_super_session_accent)">
+    <rect x="6" y="6.5" width="24" height="17" rx="5.5" />
+    <path d="M12 23.5H18.2L13.1 29.3C12.3 30.25 10.8 29.67 10.8 28.4Z" />
+  </g>
+  <path d="M18 10.4l1.42 3.18 3.18 1.42-3.18 1.42L18 19.6l-1.42-3.18-3.18-1.42 3.18-1.42z" fill="#F4F8FF" />
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#272421"/>
-      <stop offset="1" stop-color="#131211"/>
-    </linearGradient>
-    <linearGradient id="mark" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffd77a"/>
-      <stop offset="1" stop-color="#e8a93f"/>
+    <linearGradient id="dsh_super_session_accent" x1="6" y1="6.5" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8FBEFB" />
+      <stop offset="1" stop-color="#4F6BE0" />
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="15" fill="url(#bg)"/>
-  <circle cx="32" cy="25" r="9.5" fill="url(#mark)"/>
-  <path d="M14.5 52c1.6-8.8 8.4-14 17.5-14s15.9 5.2 17.5 14" fill="url(#mark)" opacity="0.92"/>
-  <path d="M47 13l1.5 4.5L53 19l-4.5 1.5L47 25l-1.5-4.5L41 19l4.5-1.5z" fill="#fff4d6" opacity="0.85"/>
-  <circle cx="32" cy="25" r="4.2" fill="#1d1b19"/>
 </svg>

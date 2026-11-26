@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "个人助理、工作会话与 Coordinator",
-    "description": "三个 Agent 预设：带持久 shell、定时任务、目标与文件交付的个人助理，按简报执行、核验并回报的工作会话，以及管一份目标、派发 worker 的 Coordinator；记忆走 profile 的 memory 插件。",
+    "title": "Super Session",
+    "description": "一个 bundle 提供三个 Agent 预设：直接对话的个人助理、按简报执行并回报证据的工作会话，以及管一份目标、派发 worker 的协调者。新建会话时选一个；侧边栏的「超级会话」行用个人助理预设打开你的常驻会话。记忆由 profile 的 memory 插件提供；关闭这个 bundle 三个预设一起消失。",
     "detail": "docs/DETAIL.zh.md"
   }
 }

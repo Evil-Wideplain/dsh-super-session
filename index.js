@@ -34,7 +34,7 @@
  * undiscovered. The presets mount `./context.js` by subpath for the same
  * reason: their rows must not be mistaken for the client row.
  *
- * @module @local/dsh-personal-agent
+ * @module @evil-wideplain/dsh-super-session
  */
 
 import { execFile } from 'node:child_process'
@@ -84,7 +84,7 @@ async function resolveDocuments() {
     const resolved = stdout.replace(/[\r\n]+$/, '')
     return resolved !== '' && isAbsolute(resolved) ? resolved : undefined
   } catch (error) {
-    console.warn('[dsh-personal-agent] could not ask Windows for the Documents directory:', error)
+    console.warn('[dsh-super-session] could not ask Windows for the Documents directory:', error)
     return undefined
   }
 }
@@ -106,26 +106,26 @@ async function resolveDocuments() {
 async function prepareSuperWorkspace(ctx) {
   const documents = await resolveDocuments()
   if (documents === undefined) {
-    console.warn('[dsh-personal-agent] the Documents directory is unknown; the super workspace was not prepared')
+    console.warn('[dsh-super-session] the Documents directory is unknown; the super workspace was not prepared')
     return
   }
   const directory = join(documents, HARNESS_DIRECTORY, WORKSPACE_LEAF)
   try {
     await mkdir(directory, { recursive: true })
   } catch (error) {
-    console.warn(`[dsh-personal-agent] could not create ${directory}:`, error)
+    console.warn(`[dsh-super-session] could not create ${directory}:`, error)
     return
   }
   const registry = ctx.get('workspaceRegistry')
   if (!registry || typeof registry.create !== 'function') {
-    console.warn('[dsh-personal-agent] the workspace registry is unavailable; the super workspace stays unregistered')
+    console.warn('[dsh-super-session] the workspace registry is unavailable; the super workspace stays unregistered')
     return
   }
   let workspace
   try {
     workspace = await registry.create(directory, WORKSPACE_TITLE)
   } catch (error) {
-    console.warn(`[dsh-personal-agent] could not register ${directory}:`, error)
+    console.warn(`[dsh-super-session] could not register ${directory}:`, error)
     return
   }
   await attachSuperSession(ctx, workspace)
@@ -151,14 +151,14 @@ async function prepareSuperWorkspace(ctx) {
  */
 async function attachSuperSession(ctx, workspace) {
   if (!workspace || typeof workspace.attachSession !== 'function') {
-    console.warn('[dsh-personal-agent] the super workspace cannot attach sessions; the super session stays outside it')
+    console.warn('[dsh-super-session] the super workspace cannot attach sessions; the super session stays outside it')
     return
   }
   const members = Array.isArray(workspace.sessionIds) ? workspace.sessionIds : []
   if (members.includes(SUPER_SESSION_ID)) return
   const persistence = ctx.get('sessionPersistence')
   if (!persistence || typeof persistence.list !== 'function') {
-    console.warn('[dsh-personal-agent] session storage is unavailable; the super session was not attached')
+    console.warn('[dsh-super-session] session storage is unavailable; the super session was not attached')
     return
   }
   let stored = false
@@ -166,14 +166,14 @@ async function attachSuperSession(ctx, workspace) {
     const snapshots = await persistence.list()
     stored = snapshots.some((snapshot) => snapshot && snapshot.header && snapshot.header.id === SUPER_SESSION_ID)
   } catch (error) {
-    console.warn('[dsh-personal-agent] could not list stored sessions; the super session was not attached:', error)
+    console.warn('[dsh-super-session] could not list stored sessions; the super session was not attached:', error)
     return
   }
   if (!stored) return
   try {
     await workspace.attachSession(SUPER_SESSION_ID)
   } catch (error) {
-    console.warn(`[dsh-personal-agent] could not attach ${SUPER_SESSION_ID} to the super workspace:`, error)
+    console.warn(`[dsh-super-session] could not attach ${SUPER_SESSION_ID} to the super workspace:`, error)
   }
 }
 
@@ -188,7 +188,7 @@ async function attachSuperSession(ctx, workspace) {
 export function apply(ctx) {
   ctx.inject(['workspaceRegistry', 'sessionPersistence'], (registryCtx) => {
     prepareSuperWorkspace(registryCtx).catch((error) => {
-      console.warn('[dsh-personal-agent] super workspace preparation failed:', error)
+      console.warn('[dsh-super-session] super workspace preparation failed:', error)
     })
   })
 }

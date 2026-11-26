@@ -2,10 +2,10 @@
 
 ## 插件文档（随 bundle 安装）
 
-- [DETAIL.md](DETAIL.md) — 三个预设（个人助理 / 工作会话 / Coordinator）的插件详情（英文）。
-- [DETAIL.zh.md](DETAIL.zh.md) — 三个预设（个人助理 / 工作会话 / Coordinator）的插件详情（中文）。
+- [DETAIL.md](DETAIL.md) — 插件详情页（英文）：**只有一行特性图**，指向 `preview.svg`；功能与用法写在 `locale/en.json` 的 `meta.description` 里。
+- [DETAIL.zh.md](DETAIL.zh.md) — 插件详情页（中文）：同样只有一行特性图，指向同一张 `preview.svg`；中文说明在 `locale/zh.json` 的 `meta.description` 里。
 
-这两份是 `package.json` 的 `files` 明确包含的详情页，会随插件一起安装。
+这两份详情页与那张 `preview.svg`（640×300，无文字，英中共用）都列在 `package.json` 的 `files` 里，随插件一起安装。
 
 ## 仓库维护（不随包安装）
 
@@ -17,7 +17,7 @@
 - [muse-personal-agent.md](muse-personal-agent.md) — Meta Muse 个人 Agent 的 System Prompt 档案：来源、版本对照、结构、设计点、运行时文件、工具命名空间。
 - [muse-system-prompt.md](muse-system-prompt.md) — Meta Muse 的 System Prompt 原文（2026-11-06 捕获）。
 
-这三份只保存在仓库里，不进入 npm 包，也不会出现在 DSH 的插件详情页。它们与 Personal Agent 预设的关系是「设计参考」，不是运行时代码。
+这三份只保存在仓库里，不进入 npm 包，也不会出现在 DSH 的插件详情页。它们与 `personal`（显示名 `Super Session`）预设的关系是「设计参考」，不是运行时代码。
 
 ## 返回
 

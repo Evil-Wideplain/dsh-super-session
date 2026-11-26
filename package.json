@@ -1,5 +1,5 @@
 {
-  "name": "@local/dsh-personal-agent",
+  "name": "@evil-wideplain/dsh-super-session",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -26,6 +26,7 @@
     "locale/*.json",
     "docs/DETAIL.md",
     "docs/DETAIL.zh.md",
+    "docs/preview.svg",
     "icon.svg",
     "README.md",
     "guard.js",
@@ -39,5 +40,9 @@
       "platform": "web",
       "immediately": true
     }
+  },
+  "dependencies": {
+    "session-guardian": "git+https://github.com/Evil-Wideplain/session-guardian.git#448dfd2b4e7e954404011212b19d9e3ad4bffd15",
+    "session-messaging": "git+https://github.com/Evil-Wideplain/session-messaging.git#2c604d22985cacf1ed2cbdc25cbf73685ef8e8f6"
   }
 }

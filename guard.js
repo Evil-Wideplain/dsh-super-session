@@ -25,7 +25,7 @@
  * effect on the personal or worker presets. Plain JavaScript plus the
  * `node:path` built-in.
  *
- * @module @local/dsh-personal-agent/guard
+ * @module @evil-wideplain/dsh-super-session/guard
  */
 
 import { isAbsolute } from 'node:path'

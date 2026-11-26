@@ -27,8 +27,8 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: personal
-        name: 个人助理（Personal Agent）
-        description: 单 Agent 个人助理：持久 shell、定时任务、目标、清单、计划模式、提问与文件交付；执行类工作派给 worker 会话，会话与记忆由 profile 提供。
+        name: Super Session
+        description: 'The assistant you talk to: plans, keeps goals, and hands execution work to worker sessions.'
         order: 20
         plugins:
           - id: persona
@@ -38,7 +38,7 @@
                 You are the user's personal agent: a long-running assistant with a consistent name, voice, and manner. You work on the user's behalf across their computer, files, accounts, and the web. You are direct, warm, and specific; you prefer a quiet, correct result to a stream of updates. Coding is one of the things you can do, not your identity. Reply in the user's language.
 
           - id: personal-handbook
-            name: '@local/dsh-personal-agent/context.js'
+            name: '@evil-wideplain/dsh-super-session/context.js'
             # Defaults to the English handbook. For the Chinese one, uncomment:
             # config:
             #   handbookPath: ./prompt/handbook.zh.md
@@ -184,8 +184,8 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: worker
-        name: 工作会话（Worker）
-        description: 主会话派发的执行会话：读简报、干活、核验，并把结果发回派发方。
+        name: Worker
+        description: 'Runs one self-contained brief, verifies the result, and reports it back.'
         order: 21
         plugins:
           - id: persona
@@ -199,7 +199,7 @@
           # Same handbook plugin as the personal preset, pointed at the worker
           # handbook. It is the only row that differs in purpose, not in code.
           - id: worker-handbook
-            name: '@local/dsh-personal-agent/context.js'
+            name: '@evil-wideplain/dsh-super-session/context.js'
             config:
               handbookPath: ./prompt/worker.md
 
@@ -344,7 +344,7 @@
       config:
         id: coordinator
         name: Coordinator
-        description: 管一份目标：拆解、派 worker、看证据验收，向派它的 lead 汇报。
+        description: 'Holds one goal, dispatches worker sessions, and reports evidence to the lead.'
         order: 22
         plugins:
           - id: persona
@@ -356,7 +356,7 @@
           # Same handbook plugin as the other presets, pointed at the coordinator
           # handbook.
           - id: coordinator-handbook
-            name: '@local/dsh-personal-agent/context.js'
+            name: '@evil-wideplain/dsh-super-session/context.js'
             config:
               handbookPath: ./prompt/coordinator.md
 
@@ -365,7 +365,7 @@
           # scope and exposes dispatch_worker, whose Agent preset is fixed to
           # worker; session-messaging still supplies the creation semantics.
           - id: dispatch-guard
-            name: '@local/dsh-personal-agent/guard.js'
+            name: '@evil-wideplain/dsh-super-session/guard.js'
 
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
@@ -460,8 +460,69 @@
 # default (off). See `team.js`.
 - insert:
     - id: worker-team-mode
-      name: '@local/dsh-personal-agent/team.js'
+      name: '@evil-wideplain/dsh-super-session/team.js'
 
 - insert:
     - id: super-session-entry
-      name: '@local/dsh-personal-agent'
+      name: '@evil-wideplain/dsh-super-session'
+
+# Dependencies this bundle mounts itself. `package.json` declares
+# `session-messaging` and `session-guardian` (pinned to the commits this
+# profile runs); the rows below are what mounts them, because DSH only
+# composes patch layers from the profile's `dsh.profile.bundles` list and
+# never mounts a bundle's transitive dependencies on its own. README records
+# the pnpm settings a git install needs before these packages exist at all.
+#
+# The `disabled` expression yields to an official bundle when the profile
+# already lists it (`profileContext.startedBundles` is the names of the bundle
+# layers that loaded), so the same service is never provided twice. A profile
+# that installs those bundles separately keeps using its own copy; a profile
+# that does not gets these rows. The row ids carry a `bundled-` prefix so a
+# profile-level override can address them without colliding with the upstream
+# ids.
+#
+# These rows are copies of the upstream patches. When `session-messaging` or
+# `session-guardian` changes its own row list (a new row, a changed config
+# default), copy the change here too or this bundle silently drifts.
+- insert:
+    - id: bundled-session-messaging
+      name: session-messaging
+      disabled: !!js "!!ctx.get('profileContext')?.startedBundles?.includes('session-messaging')"
+
+    - id: bundled-session-creation
+      name: session-messaging/creation
+      disabled: !!js "!!ctx.get('profileContext')?.startedBundles?.includes('session-messaging')"
+
+    - id: bundled-session-guardian
+      name: session-guardian
+      disabled: !!js "!!ctx.get('profileContext')?.startedBundles?.includes('session-guardian')"
+
+    # Retrieval group: trim moves old history out of context, so the model
+    # needs session_search/session_event_* to get it back. Shipped with the
+    # plugin, as upstream does; do not also enable
+    # @deepseek-ai/dsh-experimental-session-search, or the tools register twice.
+    - id: bundled-session-guardian-session-query
+      name: cordis:group
+      group: true
+      isolate:
+        sessionQuery: true
+      disabled: !!js "!!ctx.get('profileContext')?.startedBundles?.includes('session-guardian')"
+      config:
+        - id: bundled-session-guardian-session-query-sqlite
+          name: '@deepseek-ai/dsh-session-query-sqlite'
+          config:
+            path: ':memory:'
+            openAt: first-search
+        - id: bundled-session-guardian-tool-session-query
+          name: '@deepseek-ai/dsh-tool-session-query'
+
+    - id: bundled-session-guardian-trim
+      name: session-guardian/trim
+      disabled: !!js "!!ctx.get('profileContext')?.startedBundles?.includes('session-guardian')"
+
+    # One compaction backend per context: upstream ships this row disabled and
+    # leaves @deepseek-ai/dsh-compaction-basic in charge. A profile that wants
+    # the retrieval backend enables this row and disables compaction-basic.
+    - id: bundled-session-guardian-compaction
+      name: session-guardian/compaction
+      disabled: true
